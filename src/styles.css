@@ -679,7 +679,14 @@ button.lb-card.tap { width: 100%; text-align: left; font: inherit; color: inheri
 .team-hero .b1 { width: 140px; height: 140px; left: -40px; top: -30px; }
 .team-hero .b2 { width: 90px; height: 90px; right: 8%; top: 24px; }
 .team-hero .b3 { width: 160px; height: 160px; right: -50px; bottom: -40px; background: rgba(255,255,255,.1); }
-.flower-mark { position: relative; width: 86px; height: 86px; display: block; margin: 0 auto 8px; filter: drop-shadow(0 8px 16px rgba(120,0,50,.18)); }
+.flower-mark { position: relative; width: 86px; height: 86px; display: block; margin: 0 auto 8px; filter: drop-shadow(0 8px 16px rgba(120,0,50,.18)); overflow: visible; }
+.flower-mark .petal { transform-box: view-box; transform-origin: 44px 40px; animation: petal-bloom 3.6s ease-in-out infinite; }
+.flower-mark .flower-core, .flower-mark .flower-heart { transform-box: fill-box; transform-origin: center; animation: core-pulse 3.6s ease-in-out infinite; }
+@keyframes petal-bloom { 0%, 100% { transform: scale(0.38); opacity: .8; } 46%, 62% { transform: scale(1); opacity: 1; } }
+@keyframes core-pulse { 0%, 100% { transform: scale(.82); } 50% { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) {
+  .flower-mark .petal, .flower-mark .flower-core, .flower-mark .flower-heart { animation: none; }
+}
 .team-hero h1 { position: relative; margin: 0; font-family: Poppins, sans-serif; font-size: clamp(32px, 6vw, 44px); font-weight: 800; letter-spacing: -0.03em; }
 .team-hero p { position: relative; max-width: 260px; margin: 8px auto 0; font-size: 14px; line-height: 1.45; opacity: .95; }
 .team-pills, .level-pill { position: relative; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }

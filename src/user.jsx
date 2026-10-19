@@ -191,15 +191,14 @@ function DashIcon({ name }) {
 }
 
 function FlowerMark() {
+  const petals = [[44, 18], [70, 36], [60, 64], [28, 64], [18, 36]];
   return (
     <svg className="flower-mark" viewBox="0 0 88 88" aria-hidden="true">
-      <circle cx="44" cy="18" r="14" fill="#ffd6ea" />
-      <circle cx="70" cy="36" r="14" fill="#ffd6ea" />
-      <circle cx="60" cy="64" r="14" fill="#ffd6ea" />
-      <circle cx="28" cy="64" r="14" fill="#ffd6ea" />
-      <circle cx="18" cy="36" r="14" fill="#ffd6ea" />
-      <circle cx="44" cy="40" r="13" fill="#ffb703" />
-      <circle cx="44" cy="40" r="6" fill="#f59e0b" />
+      {petals.map(([cx, cy], index) => (
+        <circle key={cx + cy} className="petal" cx={cx} cy={cy} r="14" fill="#ffd6ea" style={{ animationDelay: `${index * 0.12}s` }} />
+      ))}
+      <circle className="flower-core" cx="44" cy="40" r="13" fill="#ffb703" />
+      <circle className="flower-heart" cx="44" cy="40" r="6" fill="#f59e0b" />
     </svg>
   );
 }
