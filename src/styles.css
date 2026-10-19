@@ -216,8 +216,12 @@ input:focus, select:focus, textarea:focus { outline: 2px solid rgba(233,30,140,.
 .admin-drawer .drawer-head .brand img { width: 44px; height: 44px; margin: 0; border-radius: 14px; }
 .admin-drawer .drawer-head .brand b { font-size: 18px; }
 .admin-drawer a, .side a { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: #efe7f4; text-decoration: none; padding: 8px 12px; border-radius: 12px; font-size: 14px; }
-.nav-count { min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: #ff4da6; color: #fff; font-size: 11px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; gap: 3px; box-shadow: 0 0 0 3px rgba(255,77,166,.2); }
+.nav-item { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
+.nav-ico { width: 18px; height: 18px; flex: 0 0 auto; }
+.nav-count { min-width: 22px; height: 22px; padding: 0 6px; border-radius: 8px; background: #ef4444; color: #fff; font-size: 11px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
 .nav-count i { width: 6px; height: 6px; border-radius: 99px; background: #fff; display: block; }
+.click-row { cursor: pointer; }
+.lb-card { text-decoration: none; color: inherit; display: block; }
 .side a.active .nav-count, .admin-drawer a.active .nav-count, .side a:hover .nav-count, .admin-drawer a:hover .nav-count { background: #fff; color: #c2185b; }
 .side a.active .nav-count i, .admin-drawer a.active .nav-count i { background: #e91e8c; }
 .admin-drawer a.active, .admin-drawer a:hover, .side a.active, .side a:hover { background: linear-gradient(135deg, #ff4da6, #c2185b); color: #fff; }
@@ -233,6 +237,30 @@ input:focus, select:focus, textarea:focus { outline: 2px solid rgba(233,30,140,.
 .main { padding: 18px 18px 32px; min-width: 0; }
 .admin h1 { font-family: "Playfair Display", serif; font-size: clamp(28px, 3vw, 40px); margin: 0 0 6px; }
 .admin h2 { margin: 16px 0 8px; }
+.desk { display: grid; gap: 12px; max-width: 760px; }
+.desk h1 { font-family: Poppins, sans-serif; font-size: 28px; font-weight: 700; }
+.desk-users { display: flex; align-items: center; gap: 12px; background: linear-gradient(90deg, #5b4dff, #7a5cff); color: #fff; text-decoration: none; border-radius: 18px; padding: 18px 16px; box-shadow: 0 12px 24px rgba(91, 77, 255, .22); }
+.desk-users span { font-weight: 700; }
+.desk-users b { margin-left: auto; font-size: 30px; letter-spacing: -0.03em; }
+.desk-users .desk-ico { background: rgba(255,255,255,.18); }
+.desk-ref { text-decoration: none; color: #8d8796; padding: 2px 4px 4px; }
+.desk-ref b { display: block; color: #6d6578; font-size: 20px; }
+.desk-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; background: #fff; border: 1px solid #f1eef4; border-radius: 18px; padding: 14px; box-shadow: 0 10px 24px rgba(40, 20, 60, .05); }
+.desk-card b { display: block; font-size: clamp(20px, 4vw, 26px); letter-spacing: -0.03em; }
+.desk-card span, .desk-card small { display: block; color: #8d8796; font-size: 13px; }
+.desk-card small { margin-top: 2px; }
+.desk-card > a { border-radius: 999px; background: #f4f1f6; color: #6d6578; font-size: 12px; font-weight: 800; padding: 7px 10px; text-decoration: none; white-space: nowrap; }
+.desk-ico { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; color: #fff; }
+.desk-ico svg { width: 22px; height: 22px; }
+.desk-ico.users, .desk-ico.purple { background: #5b4dff; }
+.desk-ico.green { background: #22c55e; }
+.desk-ico.orange { background: #f97316; }
+.desk-ico.amber { background: #f59e0b; }
+.desk-ico.mint { background: #34d399; }
+.desk-break h2 { margin: 8px 0 4px; font-family: Poppins, sans-serif; font-size: 22px; }
+.desk-break p { margin: 0 0 4px; color: #8d8796; font-size: 13px; line-height: 1.45; }
+.desk-card .today-pill { background: #ecfdf3; color: #15803d; }
+.today-line { color: #15803d !important; font-weight: 700; }
 .admin-hero { background: linear-gradient(135deg, #2a1736, #7a1d52); color: #fff; border-radius: 24px; padding: 22px 22px; margin-bottom: 14px; box-shadow: 0 18px 40px rgba(90, 20, 50, .18); }
 .admin-hero h1, .admin-hero p { color: #fff; }
 .admin-hero .sub { color: #ffd0e6; }

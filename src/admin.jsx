@@ -5,41 +5,66 @@ import { api, clearSession, LOGO } from "./api";
 const refreshCountsContext = createContext(() => {});
 
 const groups = [
-  ["Overview", [
-    ["/admin", "Dashboard"],
-    ["/admin/analytics", "Earnings analytics"],
-    ["/admin/users", "All users"],
-    ["/admin/leaderboard", "Leaderboard"],
-    ["/admin/referrals", "Referral commissions"],
+  ["Menu", [
+    ["/admin", "home", "Dashboard"],
+    ["/admin/users", "users", "All approved user"],
+    ["/admin/leaderboard", "trophy", "Leaderboard"],
+    ["/admin/referrals", "percent", "Referral Commissions"],
+    ["/admin/deposits", "dot", "New user Request"],
+    ["/admin/withdrawals", "down", "Withdrawal Request"],
+    ["/admin/today-users", "check", "Today Approved Users"],
+    ["/admin/today-withdrawals", "check", "Today approved Withdrawal"],
+    ["/admin/rejected", "x", "Rejected User"],
+    ["/admin/upgrades", "up", "Plan Upgrade"],
+    ["/admin/gateways", "card", "Easypaisa & Jazz Cash"],
   ]],
-  ["Payments", [
-    ["/admin/deposits", "New user requests"],
-    ["/admin/withdrawals", "Withdrawals"],
-    ["/admin/upgrades", "Plan upgrades"],
-    ["/admin/transactions", "Transactions"],
-    ["/admin/today-users", "Approved today"],
-    ["/admin/today-withdrawals", "Withdrawals today"],
-    ["/admin/rejected", "Rejected users"],
-  ]],
-  ["Setup", [
-    ["/admin/gateways", "Easypaisa & JazzCash"],
-    ["/admin/settings", "General setting"],
-    ["/admin/channels", "Official channels"],
-    ["/admin/contacts", "Contact admins"],
-    ["/admin/levels", "Levels"],
-    ["/admin/rewards", "Rewards"],
+  ["Settings", [
+    ["/admin/settings", "gear", "General Setting"],
+    ["/admin/channels", "megaphone", "Official Channels"],
+    ["/admin/contacts", "phone", "Contact Us Admins"],
+    ["/admin/levels", "sliders", "Levels Setting"],
+    ["/admin/rewards", "gift", "Rewards"],
+    ["/admin/analytics", "chart", "Earnings analytics"],
+    ["/admin/transactions", "list", "Transactions"],
   ]],
 ];
 
+function NavIcon({ name }) {
+  const paths = {
+    home: "M4 11.5 12 4l8 7.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z",
+    users: "M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM16 12a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM3 19a5 5 0 0 1 10 0M14 19a4 4 0 0 1 7 0",
+    trophy: "M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 3M16 6h3a3 3 0 0 1-3 3M12 13v3M9 20h6M10 16h4",
+    percent: "M7 17 17 7M8 8.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM16 18.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z",
+    dot: "M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0-6 0",
+    down: "M12 4v12M7 11l5 5 5-5M5 20h14",
+    check: "M5 12.5 9.5 17 19 7",
+    x: "M7 7l10 10M17 7 7 17",
+    up: "M12 20V8M7 13l5-5 5 5",
+    card: "M3 7h18v10H3zM3 11h18",
+    gear: "M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4",
+    megaphone: "M5 10v4h3l5 3V7L8 10zM16 9.5a3 3 0 0 1 0 5",
+    phone: "M8 4h3l1 4-2 1a12 12 0 0 0 5 5l1-2 4 1v3a2 2 0 0 1-2 2A16 16 0 0 1 6 6a2 2 0 0 1 2-2z",
+    sliders: "M4 7h16M4 12h16M4 17h16M8 7v0M14 12v0M10 17v0",
+    gift: "M4 10h16v10H4zM12 10v10M4 14h16M12 10c-2-4-6-4-6 0h6zM12 10c2-4 6-4 6 0h-6z",
+    chart: "M4 19V5M4 19h16M8 16v-4M12 16V8M16 16v-6",
+    list: "M8 7h12M8 12h12M8 17h12M4 7h.01M4 12h.01M4 17h.01",
+  };
+  return (
+    <svg className="nav-ico" viewBox="0 0 24 24" aria-hidden="true">
+      <path d={paths[name]} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function NavLinks({ onPick, counts }) {
-  const badges = { "/admin/deposits": counts.deposits, "/admin/withdrawals": counts.withdrawals };
+  const badges = { "/admin/deposits": counts.deposits, "/admin/withdrawals": counts.withdrawals, "/admin/upgrades": counts.upgrades };
   return groups.map(([title, items]) => (
     <div key={title}>
       <div className="nav-label">{title}</div>
-      {items.map(([to, label]) => (
+      {items.map(([to, icon, label]) => (
         <NavLink key={to} to={to} end={to === "/admin"} onClick={onPick}>
-          <span>{label}</span>
-          {badges[to] > 0 && <span className="nav-count" aria-label={`${badges[to]} waiting`}><i />{badges[to]}</span>}
+          <span className="nav-item"><NavIcon name={icon} />{label}</span>
+          {badges[to] > 0 && <span className="nav-count" aria-label={`${badges[to]} waiting`}>{badges[to]}</span>}
         </NavLink>
       ))}
     </div>
@@ -49,11 +74,11 @@ function NavLinks({ onPick, counts }) {
 export function AdminShell({ children }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
-  const [counts, setCounts] = useState({ deposits: 0, withdrawals: 0 });
+  const [counts, setCounts] = useState({ deposits: 0, withdrawals: 0, upgrades: 0 });
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const refreshCounts = () => api("/api/admin/summary").then((data) => {
-    setCounts({ deposits: data.pending_deposits || 0, withdrawals: data.pending_withdrawals || 0 });
+    setCounts({ deposits: data.pending_deposits || 0, withdrawals: data.pending_withdrawals || 0, upgrades: data.pending_upgrades || 0 });
   }).catch(() => {});
   useEffect(() => { refreshCounts(); }, [pathname]);
   const search = (e) => {
@@ -74,7 +99,7 @@ export function AdminShell({ children }) {
         <header className="admin-top">
           <button className="burger" aria-label="Open admin menu" onClick={() => setOpen(true)}><span /><span /><span /></button>
           <form onSubmit={search}>
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search user by name, email, or phone" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search here..." aria-label="Search user" />
           </form>
         </header>
         <button className={open ? "drawer-backdrop on" : "drawer-backdrop"} aria-label="Close menu" onClick={() => setOpen(false)} />
@@ -140,60 +165,76 @@ function PlanBadge({ name, color, text }) {
   return <span className="badge" style={{ background: color || "#fff3cd", color: text || "#856404" }}>{name}</span>;
 }
 
+function rs(value) {
+  const n = Number(String(value ?? "0").replace(/,/g, ""));
+  if (!Number.isFinite(n)) return "0.00";
+  return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 export function AdminHome() {
   const data = useLoad("/api/admin/summary");
   if (!data) return <p>Loading...</p>;
-  const hour = new Date().getHours();
-  const hello = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
-  const cards = [
-    ["/admin/users?status=all", "Users", data.users, "Every account", "pink"],
-    ["/admin/deposits", "New requests", data.pending_deposits, "Waiting slips", "amber"],
-    ["/admin/withdrawals", "Withdrawals", data.pending_withdrawals, "Cash out queue", "blue"],
-    ["/admin/upgrades", "Plan upgrades", data.pending_upgrades, "Higher plans", "violet"],
-    ["/admin/today-users", "Approved today", data.approved_today, "New paid users", "green"],
-    ["/admin/rejected", "Rejected", data.rejected_users, "Needs a second look", "rose"],
-  ];
+  const money = data.money || {};
   return (
-    <>
-      <div className="admin-hero">
-        <p className="sub">{hello}</p>
-        <h1>Flower Admin</h1>
-        <p>Open a queue, search a user, and check the payment slip in a popup.</p>
-      </div>
-      <div className="stats">{cards.map(([to, label, value, hint, tone]) => (
-        <Link className={`stat tone-${tone}`} key={label} to={to}>
-          <div className="sub">{label}</div>
-          <h2>{value}</h2>
-          <span>{hint}</span>
-        </Link>
-      ))}</div>
-      <EarningsStrip />
-    </>
-  );
-}
-
-function EarningsStrip() {
-  const data = useLoad("/api/admin/analytics");
-  if (!data) return null;
-  const tiles = [
-    ["User earnings", `Rs ${data.credited}`, "Commissions plus ads", "green"],
-    ["Direct referral", `Rs ${data.direct}`, "Level 1 commission", "pink"],
-    ["Indirect", `Rs ${data.indirect}`, "Level 2 and 3", "violet"],
-    ["Ads", `Rs ${data.ads}`, "Task rewards", "amber"],
-    ["Plan sales", `Rs ${data.sales}`, "Approved deposits", "blue"],
-    [data.result === "profit" ? "Profit" : "Loss", `Rs ${data.profit}`, "Sales minus credited earnings", data.result === "profit" ? "green" : "rose"],
-  ];
-  return (
-    <section className="earn-panel">
-      <div className="panel-head"><h2>Earnings</h2><Link to="/admin/analytics">Open analytics</Link></div>
-      <div className="stats">{tiles.map(([label, value, hint, tone]) => (
-        <Link className={`stat tone-${tone}`} key={label} to="/admin/analytics">
-          <div className="sub">{label}</div>
-          <h2>{value}</h2>
-          <span>{hint}</span>
-        </Link>
-      ))}</div>
-    </section>
+    <div className="desk">
+      <h1>Dashboard</h1>
+      <Link className="desk-users" to="/admin/users?status=all">
+        <span className="desk-ico users" aria-hidden="true"><NavIcon name="users" /></span>
+        <span>Total Users</span>
+        <b>{Number(data.users || 0).toLocaleString("en-US")}</b>
+      </Link>
+      <Link className="desk-ref" to="/admin/referrals">
+        <b>{rs(money.referral)} Rs</b>
+        <span>Referral Commissions</span>
+      </Link>
+      <article className="desk-card">
+        <span className="desk-ico green" aria-hidden="true"><NavIcon name="card" /></span>
+        <div><b>Rs {rs(money.deposited)}</b><span>Total Deposited</span></div>
+        <Link to="/admin/deposits?slip=all">View All</Link>
+      </article>
+      <article className="desk-card">
+        <span className="desk-ico orange" aria-hidden="true"><NavIcon name="check" /></span>
+        <div><b>{Number(money.approved_users_today || 0).toLocaleString("en-US")}</b><span>Today Approved Users</span></div>
+        <Link to="/admin/today-users">View Detail</Link>
+      </article>
+      <article className="desk-card">
+        <span className="desk-ico green" aria-hidden="true"><NavIcon name="card" /></span>
+        <div><b>Rs {rs(money.received_today)}</b><span>Today Received Balance</span><small>New account payments only</small></div>
+        <Link to="/admin/deposits?slip=approved&today=1">View Detail</Link>
+      </article>
+      <article className="desk-card">
+        <span className="desk-ico amber" aria-hidden="true"><NavIcon name="down" /></span>
+        <div><b>{Number(data.withdraw_today || 0).toLocaleString("en-US")}</b><span>Today Withdraw</span><small>Rs {rs(money.withdrawals_today)} approved today</small></div>
+        <Link to="/admin/today-withdrawals">View Detail</Link>
+      </article>
+      <section className="desk-break">
+        <h2>Earnings Breakdown</h2>
+        <p>Each source is counted on its own. Plan upgrade payments are not included here.</p>
+      </section>
+      <article className="desk-card earn">
+        <span className="desk-ico purple" aria-hidden="true"><NavIcon name="list" /></span>
+        <div>
+          <b>Rs {rs(money.task)}</b>
+          <span>Task Earnings – Overall</span>
+          <small className="today-line">Rs {rs(money.task_today)} Today Earnings</small>
+        </div>
+        <Link className="today-pill" to="/admin/transactions?category=ads">Today Details</Link>
+      </article>
+      <article className="desk-card earn">
+        <span className="desk-ico green" aria-hidden="true"><NavIcon name="up" /></span>
+        <div>
+          <b>Rs {rs(money.manual_add)}</b>
+          <span>Manual Balance Add – Overall</span>
+          <small className="today-line">Rs {rs(money.manual_add_today)} Today Manual Balance Add</small>
+        </div>
+        <Link className="today-pill" to="/admin/transactions?category=manual_add">Today Details</Link>
+      </article>
+      <article className="desk-card">
+        <span className="desk-ico mint" aria-hidden="true"><NavIcon name="card" /></span>
+        <div><b>Rs {rs(money.withdrawn)}</b><span>Total Withdrawn</span></div>
+        <Link to="/admin/withdrawals?wstatus=approved">View All</Link>
+      </article>
+    </div>
   );
 }
 
@@ -258,6 +299,7 @@ export function Analytics() {
 
 export function Users({ status = "approved", title = "Approved users", searchable = false }) {
   const [params, setParams] = useSearchParams();
+  const navigate = useNavigate();
   const q = params.get("q") || "";
   const current = params.get("status") || status;
   const data = useLoad(`/api/admin/users?status=${encodeURIComponent(current)}&q=${encodeURIComponent(q)}`);
@@ -285,8 +327,8 @@ export function Users({ status = "approved", title = "Approved users", searchabl
           </div>
         </>
       )}
-      <div className="table-wrap desktop-table"><table><thead><tr><th>#</th><th>Name</th><th>Phone</th><th>Plan</th><th>Status</th><th></th></tr></thead><tbody>{(data || []).map((u, i) => <tr key={u.id}><td>{i + 1}</td><td><b>{u.full_name}</b><div className="sub">{u.email}</div></td><td>{u.phone || "—"}</td><td><PlanBadge name={u.plan} color={u.plan_color} text={u.plan_text} /></td><td>{u.paid ? "Paid" : "Unpaid"}</td><td><Link to={`/admin/users/${u.id}`}>Details</Link></td></tr>)}</tbody></table></div>
-      <div className="cards">{(data || []).map((u) => <div className="lb-card" key={u.id}><b>{u.full_name}</b><div className="sub">{u.email}</div><div className="sub">{u.phone || "No phone"}</div><PlanBadge name={u.plan} color={u.plan_color} text={u.plan_text} /><div><Link to={`/admin/users/${u.id}`}>Details</Link></div></div>)}</div>
+      <div className="table-wrap desktop-table"><table><thead><tr><th>#</th><th>Name</th><th>Phone</th><th>Plan</th><th>Status</th><th></th></tr></thead><tbody>{(data || []).map((u, i) => <tr className="click-row" key={u.id} onClick={() => navigate(`/admin/users/${u.id}`)}><td>{i + 1}</td><td><b>{u.full_name}</b><div className="sub">{u.email}</div></td><td>{u.phone || "—"}</td><td><PlanBadge name={u.plan} color={u.plan_color} text={u.plan_text} /></td><td>{u.paid ? "Paid" : "Unpaid"}</td><td><Link to={`/admin/users/${u.id}`} onClick={(e) => e.stopPropagation()}>Details</Link></td></tr>)}</tbody></table></div>
+      <div className="cards">{(data || []).map((u) => <Link className="lb-card" to={`/admin/users/${u.id}`} key={u.id}><b>{u.full_name}</b><div className="sub">{u.email}</div><div className="sub">{u.phone || "No phone"}</div><PlanBadge name={u.plan} color={u.plan_color} text={u.plan_text} /><span className="view-btn">Open details</span></Link>)}</div>
       {data && data.length === 0 && <p>No users match this search.</p>}
     </>
   );
@@ -315,6 +357,7 @@ function SlipView({ src, onOpen }) {
 
 export function UserDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const data = useLoad(`/api/admin/users/${id}`);
   const [detail, setDetail] = useState(null);
   if (!data) return <p>Loading...</p>;
@@ -341,9 +384,9 @@ export function UserDetail() {
       <div className="pay-grid">{(data.upgrades || []).map((d) => <button className="lb-card tap" type="button" key={d.id} onClick={() => openUpgrade(d)}><b>{d.from_plan} → {d.to_plan}</b><div className="sub">Rs {d.amount} · {d.method || "No method"} · {d.sender || "No sender"} · {d.status}</div><span className="view-btn">Open</span></button>)}{(data.upgrades || []).length === 0 && <p>No upgrade request.</p>}</div>
       <h2>Team</h2>
       <div className="table-wrap desktop-table"><table><thead><tr><th>#</th><th>Name</th><th>Plan</th><th>Date</th><th>Payment Status</th><th>Details</th></tr></thead><tbody>
-        {data.team.map((m, i) => <tr key={m.id}><td>{i + 1}</td><td><b>{m.full_name}</b><div className="sub">{m.email}</div></td><td><PlanBadge name={m.plan} color={m.plan_color} text={m.plan_text} /></td><td>{new Date(m.date).toLocaleDateString()}<div className="sub">{new Date(m.date).toLocaleTimeString()}</div></td><td><span className="badge" style={{ background: m.paid ? "#d1fae5" : "#fff3cd", color: m.paid ? "#065f46" : "#856404" }}>{m.paid ? "Paid" : "Unpaid"}</span></td><td><Link to={`/admin/users/${m.id}`}>Details</Link></td></tr>)}
+        {data.team.map((m, i) => <tr className="click-row" key={m.id} onClick={() => navigate(`/admin/users/${m.id}`)}><td>{i + 1}</td><td><b>{m.full_name}</b><div className="sub">{m.email}</div></td><td><PlanBadge name={m.plan} color={m.plan_color} text={m.plan_text} /></td><td>{new Date(m.date).toLocaleDateString()}<div className="sub">{new Date(m.date).toLocaleTimeString()}</div></td><td><span className="badge" style={{ background: m.paid ? "#d1fae5" : "#fff3cd", color: m.paid ? "#065f46" : "#856404" }}>{m.paid ? "Paid" : "Unpaid"}</span></td><td><Link to={`/admin/users/${m.id}`} onClick={(e) => e.stopPropagation()}>Details</Link></td></tr>)}
       </tbody></table></div>
-      <div className="cards">{data.team.map((m) => <div className="lb-card" key={m.id}><b>{m.full_name}</b><div className="sub">{m.email}</div><PlanBadge name={m.plan} color={m.plan_color} text={m.plan_text} /><div className="sub">{m.paid ? "Paid" : "Unpaid"}</div><Link to={`/admin/users/${m.id}`}>Details</Link></div>)}</div>
+      <div className="cards">{data.team.map((m) => <Link className="lb-card" to={`/admin/users/${m.id}`} key={m.id}><b>{m.full_name}</b><div className="sub">{m.email}</div><PlanBadge name={m.plan} color={m.plan_color} text={m.plan_text} /><div className="sub">{m.paid ? "Paid" : "Unpaid"}</div><span className="view-btn">Open details</span></Link>)}</div>
       {data.team.length === 0 && <p>No team members yet.</p>}
       <h2>Transactions</h2>
       <div className="table-wrap"><table><tbody>{data.transactions.map((t) => <tr key={t.id}><td><b>{t.title}</b><div className="sub">From: {t.source_email || "—"}</div>{t.plan_name && <div className="sub">Plan: {t.plan_name}</div>}</td><td>Rs {t.amount}</td><td><button className="view-btn" type="button" onClick={() => setDetail({ title: t.title, subtitle: `Rs ${t.amount}`, fields: [["From", t.source_email || "—"], ["Plan", t.plan_name || "—"], ["Amount", `Rs ${t.amount}`]] })}>View</button></td></tr>)}</tbody></table></div>
@@ -354,13 +397,14 @@ export function UserDetail() {
 
 export function Leaderboard() {
   const data = useLoad("/api/admin/leaderboard");
+  const navigate = useNavigate();
   return (
     <>
       <h1>Leaderboard</h1>
       <div className="table-wrap desktop-table"><table><thead><tr><th>#</th><th>Name</th><th>Active Team</th><th>Level</th><th>Total Earnings</th><th>Details</th></tr></thead><tbody>
-        {(data || []).map((u, i) => <tr key={u.id}><td>{i + 1}</td><td><b>{u.full_name}</b><div className="sub">{u.email}</div></td><td>{u.active_team}</td><td>Level {u.level}</td><td>Rs {u.earnings}</td><td><Link to={`/admin/users/${u.id}`}>Details</Link></td></tr>)}
+        {(data || []).map((u, i) => <tr className="click-row" key={u.id} onClick={() => navigate(`/admin/users/${u.id}`)}><td>{i + 1}</td><td><b>{u.full_name}</b><div className="sub">{u.email}</div></td><td>{u.active_team}</td><td>Level {u.level}</td><td>Rs {u.earnings}</td><td><Link to={`/admin/users/${u.id}`} onClick={(e) => e.stopPropagation()}>Details</Link></td></tr>)}
       </tbody></table></div>
-      <div className="cards">{(data || []).map((u, i) => <div className="lb-card" key={u.id}><b>#{i + 1} {u.full_name}</b><div className="sub">{u.email}</div><div>Active team {u.active_team} · Level {u.level}</div><div>Rs {u.earnings}</div><Link to={`/admin/users/${u.id}`}>Details</Link></div>)}</div>
+      <div className="cards">{(data || []).map((u, i) => <Link className="lb-card" to={`/admin/users/${u.id}`} key={u.id}><b>#{i + 1} {u.full_name}</b><div className="sub">{u.email}</div><div>Active team {u.active_team} · Level {u.level}</div><div>Rs {u.earnings}</div><span className="view-btn">Open details</span></Link>)}</div>
     </>
   );
 }
@@ -471,8 +515,8 @@ export function Transactions() {
     <>
       <h1>Transactions</h1>
       <div className="search-row"><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, email, or commission" /><select value={category} onChange={(e) => setCategory(e.target.value)}><option value="">All</option><option value="direct_traffic">Direct Referral Commission</option><option value="level_2">Level 2 Indirect Referral Commission</option><option value="level_3">Level 3 Indirect Referral Commission</option><option value="ads">Ads Earning</option><option value="manual_add">Manual Additions</option><option value="manual_sub">Manual Subtractions</option><option value="withdraw">Withdraw</option></select></div>
-      <div className="table-wrap desktop-table"><table><tbody>{(data || []).map((t) => <tr key={t.id}><td><b>{t.user_name}</b><div className="sub">{t.user_email}</div><div className="sub">{t.title}</div></td><td>Rs {t.amount}</td><td><button className="view-btn" type="button" onClick={() => setDetail({ title: t.title, subtitle: t.user_name, fields: [["User", t.user_name], ["Email", t.user_email], ["From", t.source_email || "—"], ["Plan", t.plan_name || "—"], ["Amount", `Rs ${t.amount}`]] })}>View</button></td></tr>)}</tbody></table></div>
-      <div className="cards">{(data || []).map((t) => <button className="lb-card tap" type="button" key={t.id} onClick={() => setDetail({ title: t.title, subtitle: t.user_name, fields: [["User", t.user_name], ["Email", t.user_email], ["From", t.source_email || "—"], ["Plan", t.plan_name || "—"], ["Amount", `Rs ${t.amount}`]] })}><b>{t.user_name}</b><div className="sub">{t.title}</div><div className="sub">Rs {t.amount}</div></button>)}</div>
+      <div className="table-wrap desktop-table"><table><tbody>{(data || []).map((t) => <tr key={t.id}><td><Link to={t.user_id ? `/admin/users/${t.user_id}` : "/admin/users"}><b>{t.user_name}</b></Link><div className="sub">{t.user_email}</div><div className="sub">{t.title}</div></td><td>Rs {t.amount}</td><td><button className="view-btn" type="button" onClick={() => setDetail({ title: t.title, subtitle: t.user_name, fields: [["User", t.user_name], ["Email", t.user_email], ["From", t.source_email || "—"], ["Plan", t.plan_name || "—"], ["Amount", `Rs ${t.amount}`]] })}>View</button></td></tr>)}</tbody></table></div>
+      <div className="cards">{(data || []).map((t) => <div className="lb-card" key={t.id}><Link to={t.user_id ? `/admin/users/${t.user_id}` : "/admin/users"}><b>{t.user_name}</b></Link><div className="sub">{t.title}</div><div className="sub">Rs {t.amount}</div><button className="view-btn" type="button" onClick={() => setDetail({ title: t.title, subtitle: t.user_name, fields: [["User", t.user_name], ["Email", t.user_email], ["From", t.source_email || "—"], ["Plan", t.plan_name || "—"], ["Amount", `Rs ${t.amount}`]] })}>View</button></div>)}</div>
       {detail && <DetailModal detail={detail} onClose={() => setDetail(null)} onAction={() => setDetail(null)} />}
     </>
   );
