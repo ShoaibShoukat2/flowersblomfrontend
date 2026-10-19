@@ -281,6 +281,7 @@ export function Dashboard() {
         <p>{user.email}</p>
         <button type="button" onClick={copy}>{copied ? "Copied" : "Copy Referral Link"}</button>
       </section>
+      <LevelStatus data={data} />
       <div className="notice"><i>📣</i><div><b>Your Notice</b><div className="marquee"><span>{data.notice}</span></div></div></div>
       <div className="sec">Quick Menu</div>
       <div className="grid">
@@ -296,16 +297,55 @@ export function Dashboard() {
   );
 }
 
+function remain(seconds) {
+  const left = Math.max(0, Number(seconds) || 0);
+  const days = Math.floor(left / 86400);
+  const hours = Math.floor((left % 86400) / 3600);
+  const minutes = Math.floor((left % 3600) / 60);
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
+
+function LevelStatus({ data }) {
+  const progress = data.progress || {};
+  const next = progress.next_level ? `${progress.joinings} / ${progress.next_required} for Level ${progress.next_level}` : "Level 8 complete";
+  return (
+    <section className="level-status">
+      <article><span>Current Level</span><b>Level {progress.level || 0}</b></article>
+      <article><span>Next level joinings</span><b>{next}</b></article>
+      <article><span>Current Balance</span><b>Rs {moneyText(data.user.balance)}</b><small>Task earnings</small></article>
+      <article><span>Flower Earnings</span><b>Rs {moneyText(progress.flower_balance)}</b><small>{progress.flower_locked ? "Locked until Level 8" : "Unlocked"}</small></article>
+      <article className={progress.locked ? "is-locked" : "is-open"}><span>Task Status</span><b>{progress.task_status || "Unlocked"}</b></article>
+      <article><span>Joining cycle</span><b>{progress.locked ? "Due now" : remain(progress.remaining_seconds)}</b><small>{progress.cycle_days}-day cycle</small></article>
+      <article><span>Per task</span><b>Rs {moneyText(progress.task_rate, 0)}</b><small>{Number(progress.level) === 8 ? "Level 8 rate is Rs 100" : "Level 8 rate is Rs 100"}</small></article>
+      <p>{progress.message}</p>
+    </section>
+  );
+}
+
 export function Work() {
-  const { data, reload } = useLoad("/api/user/tasks");
+  const { data, error, reload } = useLoad("/api/user/tasks");
+  const [note, setNote] = useState("");
+  if (error) return <p className="pad">{error}</p>;
+  if (!data) return <p className="pad">Loading...</p>;
+  const progress = data.progress || {};
+  const finish = (task) => {
+    setNote("");
+    api(`/api/user/tasks/${task.id}/complete`, { method: "POST" }).then(reload).catch((err) => setNote(err.message));
+  };
   return (
     <>
       <Back />
       <h2 className="page-title">Work</h2>
-      <div className="list">{(data || []).map((task) => (
-        <div className="list-card" key={task.id}>
+      <p className="pad">Level {progress.level || 0} pays Rs {progress.task_rate} per task. Daily limit {progress.daily_limit || 0}.</p>
+      {progress.message && <p className={progress.locked ? "pad lock-note" : "pad"}>{progress.message}</p>}
+      {error && <p className="pad">{error}</p>}
+      {note && <p className="pad lock-note">{note}</p>}
+      <div className="list">{(data.tasks || []).map((task) => (
+        <div className="list-card" key={task.slot}>
           <div><b>{task.title}</b><div className="sub">{task.detail}</div></div>
-          {task.done ? <span className="green">Done</span> : <button className="btn small" onClick={() => api(`/api/user/tasks/${task.id}/complete`, { method: "POST" }).then(reload)}>Rs {task.reward}</button>}
+          {task.done ? <span className="green">Done</span> : <button className="btn small" disabled={progress.locked} onClick={() => finish(task)}>Rs {task.reward}</button>}
         </div>
       ))}</div>
     </>
@@ -367,7 +407,7 @@ export function Wallet() {
         <span className="blob b3" />
         <p>Current balance</p>
         <h1>Rs {moneyText(home.data.user.balance)}</h1>
-        <p className="bal-note">Referral & approved earnings only · Withdraw anytime</p>
+        <p className="bal-note">{home.data.progress?.flower_locked ? "Flower Earnings stay locked until Level 8." : "Level 8 is open, so Flower Earnings can be withdrawn with Current Balance."}</p>
         <div className="bal-actions">
           <Link className="pill solid" to="/app/withdraw"><WalletGlyph name="up" /> Withdraw</Link>
           <Link className="pill line" to="/app/plans"><WalletGlyph name="plus" /> Deposit</Link>
@@ -404,6 +444,7 @@ export function Wallet() {
           <div>
             <b>Rs {moneyText(wallet.flowers)}</b>
             <span>Flower Earning <span aria-hidden="true">🌸</span></span>
+            <small>{wallet.flower_locked ? "Locked until Level 8. Not part of Current Balance." : "Unlocked for withdrawal."}</small>
           </div>
         </article>
       </div>
