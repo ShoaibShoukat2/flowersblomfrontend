@@ -16,7 +16,7 @@ const userNav = [
   ["/app/work", "task", "Work"],
   ["/app/wallet", "wallet", "Wallet"],
   ["/app/transactions", "ads", "Transactions"],
-  ["/app/team", "team", "Team"],
+  ["/app/team", "team", "Referred Users"],
   ["/app/rewards", "level", "Levels & Rewards"],
   ["/app/channels", "ads", "Official Channels"],
   ["/app/withdraw", "withdraw", "Withdraw"],
@@ -37,6 +37,8 @@ function WalletGlyph({ name }) {
     plus: "M12 6v12M6 12h12",
     up: "M12 19V6M7 11l5-5 5 5",
     list: "M8 7h12M8 12h12M8 17h12M4 7h.01M4 12h.01M4 17h.01",
+    layers: "M12 4l8 4-8 4-8-4 8-4zM4 12l8 4 8-4M4 16l8 4 8-4",
+    link: "M10 13a5 5 0 0 0 7.1.1l2-2a5 5 0 0 0-7.1-7.1l-1.2 1.1M14 11a5 5 0 0 0-7.1-.1l-2 2a5 5 0 0 0 7.1 7.1l1.1-1.1",
   };
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -52,7 +54,7 @@ function pageInfo(pathname) {
     ["/app/work", "Work", "Work"],
     ["/app/wallet", "My Wallet", "My Wallet"],
     ["/app/transactions", "History", "Transactions"],
-    ["/app/team", "Team", "Team"],
+    ["/app/team", "Referred Users", "Referred Users"],
     ["/app/rewards", "Levels & Rewards", "Rewards"],
     ["/app/channels", "Official Channels", "Channels"],
     ["/app/withdraw", "Withdraw", "Withdraw"],
@@ -188,6 +190,53 @@ function DashIcon({ name }) {
   );
 }
 
+function FlowerMark() {
+  return (
+    <svg className="flower-mark" viewBox="0 0 88 88" aria-hidden="true">
+      <circle cx="44" cy="18" r="14" fill="#ffd6ea" />
+      <circle cx="70" cy="36" r="14" fill="#ffd6ea" />
+      <circle cx="60" cy="64" r="14" fill="#ffd6ea" />
+      <circle cx="28" cy="64" r="14" fill="#ffd6ea" />
+      <circle cx="18" cy="36" r="14" fill="#ffd6ea" />
+      <circle cx="44" cy="40" r="13" fill="#ffb703" />
+      <circle cx="44" cy="40" r="6" fill="#f59e0b" />
+    </svg>
+  );
+}
+
+function TeamBoard({ home, copied, onCopy }) {
+  const user = home.user || {};
+  return (
+    <div className="team-board">
+      <section className="team-hero">
+        <span className="blob b1" />
+        <span className="blob b2" />
+        <span className="blob b3" />
+        <FlowerMark />
+        <h1>My Team</h1>
+        <p>Grow your team and earn more rewards</p>
+        <div className="team-pills">
+          <span><WalletGlyph name="people" /> {home.team_total || 0} Total</span>
+          <span><WalletGlyph name="check" /> {home.active_team || 0} Active</span>
+        </div>
+        <div className="level-pill"><WalletGlyph name="layers" /> Level {user.level || 0}</div>
+      </section>
+      <div className="stat-row team-stats">
+        <article className="wstat"><b>{home.team_total || 0}</b><span>Referred</span></article>
+        <article className="wstat"><b>{home.active_team || 0}</b><span>Active</span></article>
+        <article className="wstat"><b>{home.daily_limit || 0}</b><span>Task limit</span></article>
+      </div>
+      <section className="ref-card">
+        <div className="ref-kicker"><WalletGlyph name="link" /> Your referral link</div>
+        <div className="ref-row">
+          <input readOnly value={home.referral_link || ""} aria-label="Referral link" />
+          <button type="button" onClick={onCopy}>{copied ? "Copied" : "Copy"}</button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export function Dashboard() {
   const { data, error } = useLoad("/api/user/home");
   const [copied, setCopied] = useState(false);
@@ -210,34 +259,18 @@ export function Dashboard() {
     ["plan", "#e0f2fe", "#0369a1", "Plan", user.plan || "No plan"],
     ["task", "#ecfdf5", "#047857", "Today's work", `${data.tasks_today} / ${data.daily_limit}`],
   ];
-  const hour = new Date().getHours();
-  const hello = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
   const menus = [
     ["/app/work", "task", "#ecfdf5", "#047857", "Work"],
     ["/app/plans", "plan", "#e0f2fe", "#0369a1", "Plans"],
     ["/app/wallet", "wallet", "#fff0f6", "#e91e8c", "Wallet"],
-    ["/app/team", "team", "#fce7f3", "#be185d", "Team"],
+    ["/app/team", "team", "#fce7f3", "#be185d", "Referred Users"],
     ["/app/rewards", "level", "#fef3c7", "#b45309", "Levels & Rewards"],
     ["/app/channels", "ads", "#fff7ed", "#c2410c", "Official Channels"],
     ["/app/withdraw", "withdraw", "#f3e8ff", "#7c3aed", "Withdraw"],
   ];
   return (
     <div className="dash">
-      <div className="hero dash-hero">
-        <span className="petal p1" />
-        <span className="petal p2" />
-        <span className="petal p3" />
-        <div className="avatar"><img src={LOGO} alt="Flower" /></div>
-        <p className="hello">{hello}</p>
-        <h1>{user.full_name}</h1>
-        <p className="hero-mail">{user.email}</p>
-        <div className="hero-pills">
-          <span>{user.plan || "No plan"}</span>
-          <span>{user.account_status}</span>
-          <span>Level {user.level}</span>
-        </div>
-        <button className="copy" onClick={copy}>{copied ? "Copied" : "Copy Refer Link"}</button>
-      </div>
+      <TeamBoard home={data} copied={copied} onCopy={copy} />
       <div className="balance-card">
         <span className="big-icon pink-icon"><DashIcon name="wallet" /></span>
         <div>
@@ -281,12 +314,6 @@ export function Dashboard() {
         ))}
       </div>
       <Link className="btn contact" to="/app/contact">Contact Us</Link>
-      <div className="sec">Referral</div>
-      <div className="refbox">
-        <b>Your Referral Link</b>
-        <input readOnly value={data.referral_link} />
-        <button className="btn" style={{ marginTop: 10 }} onClick={copy}>{copied ? "Copied" : "Copy link"}</button>
-      </div>
     </div>
   );
 }
@@ -409,11 +436,19 @@ export function Transactions() {
 }
 
 export function Team() {
+  const home = useLoad("/api/user/home");
   const { data } = useLoad("/api/user/team");
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    if (!home.data?.referral_link) return;
+    await navigator.clipboard.writeText(home.data.referral_link);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
   return (
     <>
-      <Back />
-      <h2 className="page-title">Team</h2>
+      {home.error ? <p className="pad">{home.error}</p> : home.data ? <TeamBoard home={home.data} copied={copied} onCopy={copy} /> : <p className="pad">Loading...</p>}
+      <h2 className="sec-title"><i /> Members</h2>
       <div className="list">{(data || []).map((m) => (
         <div className="list-card" key={m.id}><div><b>{m.full_name}</b><div className="sub">{m.email}</div><div className="sub">{m.plan || "No plan"}</div></div><span className="badge" style={{ background: m.status === "Paid" ? "#d1fae5" : "#fff3cd", color: m.status === "Paid" ? "#065f46" : "#856404" }}>{m.status}</span></div>
       ))}</div>

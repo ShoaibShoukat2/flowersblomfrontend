@@ -120,7 +120,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid rgba(233,30,140,.
 .dash .big-icon { animation: floaty 3.4s ease-in-out infinite; }
 .dash .earn-card, .dash .menu { transition: transform .25s ease, box-shadow .25s ease; }
 .dash .earn-card:hover, .dash .menu:hover { transform: translateY(-6px); box-shadow: 0 16px 30px rgba(233,30,140,.16); }
-.dash .balance-card { overflow: hidden; }
+.dash .balance-card { overflow: hidden; margin-top: 16px; }
 .dash .balance-card::after {
   content: "";
   position: absolute; inset: 0;
@@ -334,7 +334,7 @@ button.lb-card.tap { width: 100%; text-align: left; font: inherit; color: inheri
   .admin-hero { padding: 20px 16px; }
 }
 
-.phone:has(.wallet-page) {
+.phone:has(.wallet-page), .phone:has(.dash), .phone:has(.team-board) {
   max-width: 1080px;
   background:
     radial-gradient(circle at 0 0, #ffe4f3 0, transparent 34%),
@@ -663,4 +663,53 @@ button.lb-card.tap { width: 100%; text-align: left; font: inherit; color: inheri
 }
 @media (prefers-reduced-motion: reduce) {
   .pill, .quick-row a, .earn-tile, .wstat { transition: none; }
+}
+.team-board { padding: 14px 14px 4px; }
+.team-hero {
+  position: relative;
+  overflow: hidden;
+  text-align: center;
+  color: #fff;
+  border-radius: 28px;
+  padding: 28px 18px 58px;
+  background: linear-gradient(165deg, #ff78be 0%, #ff2f95 48%, #e11278 100%);
+  box-shadow: 0 18px 40px rgba(225, 18, 120, .26);
+}
+.team-hero .blob { position: absolute; border-radius: 50%; background: rgba(255,255,255,.14); }
+.team-hero .b1 { width: 140px; height: 140px; left: -40px; top: -30px; }
+.team-hero .b2 { width: 90px; height: 90px; right: 8%; top: 24px; }
+.team-hero .b3 { width: 160px; height: 160px; right: -50px; bottom: -40px; background: rgba(255,255,255,.1); }
+.flower-mark { position: relative; width: 86px; height: 86px; display: block; margin: 0 auto 8px; filter: drop-shadow(0 8px 16px rgba(120,0,50,.18)); }
+.team-hero h1 { position: relative; margin: 0; font-family: Poppins, sans-serif; font-size: clamp(32px, 6vw, 44px); font-weight: 800; letter-spacing: -0.03em; }
+.team-hero p { position: relative; max-width: 260px; margin: 8px auto 0; font-size: 14px; line-height: 1.45; opacity: .95; }
+.team-pills, .level-pill { position: relative; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+.team-pills { margin-top: 16px; }
+.team-pills span, .level-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255,255,255,.18);
+  border: 1px solid rgba(255,255,255,.28);
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.team-pills svg, .level-pill svg, .ref-kicker svg { width: 16px; height: 16px; }
+.level-pill { margin: 12px auto 0; width: fit-content; background: rgba(255,255,255,.22); }
+.team-stats { margin-top: -34px; }
+.team-stats b { font-size: clamp(22px, 4vw, 28px); }
+.ref-card { margin: 16px 8px 8px; background: #fff; border-radius: 22px; padding: 16px; box-shadow: 0 12px 28px rgba(80, 20, 60, .06); }
+.ref-kicker { display: flex; align-items: center; gap: 8px; color: #8b8798; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.ref-row { display: flex; gap: 8px; margin-top: 12px; }
+.ref-row input { flex: 1; min-width: 0; background: #faf7f8; }
+.ref-row button { width: auto; flex: 0 0 auto; border: 0; border-radius: 14px; padding: 0 16px; background: linear-gradient(135deg, #ff4da6, #e91e8c); color: #fff; font-weight: 800; cursor: pointer; }
+@media (max-width: 900px) {
+  .dash, .team-board { padding-bottom: 8px; }
+}
+@media (max-width: 420px) {
+  .team-hero { border-radius: 24px; padding: 22px 14px 52px; }
+  .flower-mark { width: 72px; height: 72px; }
+  .ref-row { flex-direction: column; }
+  .ref-row button { height: 46px; }
 }
