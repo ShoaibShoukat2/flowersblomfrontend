@@ -246,7 +246,11 @@ input:focus, select:focus, textarea:focus { outline: 2px solid rgba(233,30,140,.
 .desk-ref { text-decoration: none; color: #8d8796; padding: 2px 4px 4px; }
 .desk-ref b { display: block; color: #6d6578; font-size: 20px; }
 .desk-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; background: #fff; border: 1px solid #f1eef4; border-radius: 18px; padding: 14px; box-shadow: 0 10px 24px rgba(40, 20, 60, .05); }
-.desk-card b { display: block; font-size: clamp(20px, 4vw, 26px); letter-spacing: -0.03em; }
+.desk-card b { display: block; font-size: clamp(18px, 4.4vw, 26px); letter-spacing: -0.03em; line-height: 1.15; }
+@media (max-width: 640px) {
+  .desk-card { grid-template-columns: auto minmax(0, 1fr); }
+  .desk-card > a { grid-column: 1 / -1; justify-self: start; }
+}
 .desk-card span, .desk-card small { display: block; color: #8d8796; font-size: 13px; }
 .desk-card small { margin-top: 2px; }
 .desk-card > a { border-radius: 999px; background: #f4f1f6; color: #6d6578; font-size: 12px; font-weight: 800; padding: 7px 10px; text-decoration: none; white-space: nowrap; }
