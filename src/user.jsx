@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { api, clearSession, LOGO, savedUser } from "./api";
 
@@ -51,7 +51,7 @@ function pageInfo(pathname) {
   const pages = [
     ["/app/plans", "Plan Upgrade", "Plan Upgrade"],
     ["/app/deposit", "Deposit", "Deposit"],
-    ["/app/work", "Work", "Work"],
+    ["/app/work", "Task Room", "Work"],
     ["/app/wallet", "My Wallet", "My Wallet"],
     ["/app/transactions", "Transaction History", "Transactions"],
     ["/app/team", "My Team", "My Team"],
@@ -324,31 +324,124 @@ function LevelStatus({ data }) {
   );
 }
 
+const FLOWER_TONES = ["#ff5aa5", "#ff7a8a", "#e23b92", "#f5b942", "#ff4d6d", "#c084fc", "#fb7185", "#f472b6", "#fda4af", "#f9a8d4"];
+const PETAL_SPINS = [0, 72, 144, 216, 288];
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function TaskBloom({ mode, tone }) {
+  return (
+    <span className={`task-bloom is-${mode}`} style={{ "--petal": tone }} aria-hidden="true">
+      {PETAL_SPINS.map((deg) => <i key={deg} className="bloom-petal" style={{ "--spin": `${deg}deg` }} />)}
+      <i className="bud-cup" />
+      <i className="bloom-core" />
+      {mode === "done" && <i className="bloom-check" />}
+    </span>
+  );
+}
+
 export function Work() {
   const { data, error, reload } = useLoad("/api/user/tasks");
   const [note, setNote] = useState("");
+  const [openingSlot, setOpeningSlot] = useState(null);
+  const [rewardPop, setRewardPop] = useState(null);
+  const busy = useRef(false);
+  const alive = useRef(true);
+  useEffect(() => () => { alive.current = false; }, []);
   if (error) return <p className="pad">{error}</p>;
   if (!data) return <p className="pad">Loading...</p>;
   const progress = data.progress || {};
-  const finish = (task) => {
+  const tasks = data.tasks || [];
+  const limit = Number(progress.daily_limit) || tasks.length || 0;
+  const doneCount = tasks.filter((task) => task.done).length;
+  const nextTask = tasks.find((task) => !task.done);
+  const meter = limit ? Math.min(100, Math.round((doneCount / limit) * 100)) : 0;
+  const finish = async (task) => {
+    if (busy.current || task.done) return;
+    if (progress.locked) {
+      setNote(progress.message || "Tasks are locked.");
+      return;
+    }
+    if (!nextTask || task.slot !== nextTask.slot) {
+      setNote("Open the flower above this one first.");
+      return;
+    }
+    busy.current = true;
     setNote("");
-    api(`/api/user/tasks/${task.id}/complete`, { method: "POST" }).then(reload).catch((err) => setNote(err.message));
+    setOpeningSlot(task.slot);
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    try {
+      if (!reduce) await wait(920);
+      if (!alive.current) return;
+      const result = await api(`/api/user/tasks/${task.id}/complete`, { method: "POST" });
+      if (!alive.current) return;
+      setRewardPop({ slot: task.slot, amount: result.reward });
+      if (!reduce) await wait(680);
+      await reload();
+    } catch (err) {
+      if (alive.current) setNote(err.message);
+    } finally {
+      busy.current = false;
+      if (alive.current) {
+        setOpeningSlot(null);
+        setTimeout(() => { if (alive.current) setRewardPop(null); }, 500);
+      }
+    }
+  };
+  const modeFor = (task) => {
+    if (task.done) return "done";
+    if (openingSlot === task.slot) return "opening";
+    if (progress.locked) return "locked";
+    if (nextTask && task.slot === nextTask.slot) return "ready";
+    return "wait";
   };
   return (
-    <>
+    <div className="task-room">
       <Back />
-      <h2 className="page-title">Work</h2>
-      <p className="pad">Level {progress.level || 0} pays Rs {progress.task_rate} per task. Daily limit {progress.daily_limit || 0}.</p>
-      {progress.message && <p className={progress.locked ? "pad lock-note" : "pad"}>{progress.message}</p>}
-      {error && <p className="pad">{error}</p>}
-      {note && <p className="pad lock-note">{note}</p>}
-      <div className="list">{(data.tasks || []).map((task) => (
-        <div className="list-card" key={task.slot}>
-          <div><b>{task.title}</b><div className="sub">{task.detail}</div></div>
-          {task.done ? <span className="green">Done</span> : <button className="btn small" disabled={progress.locked} onClick={() => finish(task)}>Rs {task.reward}</button>}
+      <section className="task-hero">
+        <span className="drift d1" />
+        <span className="drift d2" />
+        <span className="drift d3" />
+        <p>Task Room</p>
+        <h2>{doneCount >= limit && limit > 0 ? "Today's flowers are open" : "Open today's flowers"}</h2>
+        <div className="task-pills">
+          <span>Level {progress.level || 0}</span>
+          <span>Rs {progress.task_rate} each</span>
+          <span>{doneCount}/{limit} open</span>
         </div>
-      ))}</div>
-    </>
+        <div className="task-meter" aria-hidden="true"><i style={{ width: `${meter}%` }} /></div>
+      </section>
+      {progress.message && <p className={progress.locked ? "task-note locked" : "task-note"}>{progress.message}</p>}
+      {note && <p className="task-note locked">{note}</p>}
+      <ol className="task-vine">
+        {tasks.map((task, index) => {
+          const mode = modeFor(task);
+          return (
+            <li key={task.slot} className={`task-node is-${mode}`} style={{ animationDelay: `${index * 80}ms` }}>
+              <button
+                type="button"
+                className="task-hit"
+                disabled={mode === "done" || mode === "opening"}
+                onClick={() => finish(task)}
+              >
+                <span className="bloom-wrap">
+                  <TaskBloom mode={mode} tone={FLOWER_TONES[index % FLOWER_TONES.length]} />
+                  {rewardPop && rewardPop.slot === task.slot && <b className="reward-float">+ Rs {rewardPop.amount}</b>}
+                </span>
+                <span className="task-copy">
+                  <b>{task.title}</b>
+                  <span>{task.detail}</span>
+                  <em>{mode === "done" ? "Opened" : mode === "opening" ? "Opening..." : `Rs ${task.reward}`}</em>
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+      {tasks.length === 0 && <p className="task-note">No task is available right now.</p>}
+    </div>
   );
 }
 
