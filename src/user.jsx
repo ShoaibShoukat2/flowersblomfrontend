@@ -11,16 +11,16 @@ function useLoad(path) {
 }
 
 const userNav = [
-  ["/app", "earnings", "Dashboard"],
-  ["/app/plans", "plan", "Buy a plan"],
+  ["/app", "home", "Dashboard"],
   ["/app/work", "task", "Work"],
   ["/app/wallet", "wallet", "Wallet"],
-  ["/app/transactions", "ads", "Transactions"],
-  ["/app/team", "team", "Referred Users"],
-  ["/app/rewards", "level", "Levels & Rewards"],
+  ["/app/contact", "direct", "Contact Tasks"],
   ["/app/channels", "ads", "Official Channels"],
   ["/app/withdraw", "withdraw", "Withdraw"],
-  ["/app/contact", "direct", "Contact Us"],
+  ["/app/team", "team", "My Team"],
+  ["/app/rewards", "level", "Levels"],
+  ["/app/plans", "plan", "Plan Upgrade"],
+  ["/app/transactions", "task", "Transactions"],
 ];
 
 function WalletGlyph({ name }) {
@@ -49,16 +49,16 @@ function WalletGlyph({ name }) {
 
 function pageInfo(pathname) {
   const pages = [
-    ["/app/plans", "Buy a plan", "Plans"],
+    ["/app/plans", "Plan Upgrade", "Plan Upgrade"],
     ["/app/deposit", "Deposit", "Deposit"],
     ["/app/work", "Work", "Work"],
     ["/app/wallet", "My Wallet", "My Wallet"],
-    ["/app/transactions", "History", "Transactions"],
-    ["/app/team", "Referred Users", "Referred Users"],
-    ["/app/rewards", "Levels & Rewards", "Rewards"],
+    ["/app/transactions", "Transaction History", "Transactions"],
+    ["/app/team", "My Team", "My Team"],
+    ["/app/rewards", "Levels", "Levels"],
     ["/app/channels", "Official Channels", "Channels"],
     ["/app/withdraw", "Withdraw", "Withdraw"],
-    ["/app/contact", "Contact Us", "Contact"],
+    ["/app/contact", "Contact Tasks", "Contact"],
   ];
   const hit = pages.find(([path]) => pathname === path);
   return hit ? { title: hit[1], crumb: hit[2] } : { title: "Dashboard", crumb: "Dashboard" };
@@ -148,7 +148,7 @@ export function UserShell({ children }) {
           <button className="burger" aria-label="Close menu" onClick={() => setOpen(false)}><span /><span /></button>
         </div>
         {userNav.map(([to, icon, label], index) => (
-          <NavLink key={to} to={to} end={to === "/app"} className={to === "/app/plans" ? "plan-link" : undefined} style={{ animationDelay: `${index * 40}ms` }}>
+          <NavLink key={to} to={to} end={to === "/app"} style={{ animationDelay: `${index * 40}ms` }}>
             <span className="icon"><DashIcon name={icon} /></span>
             {label}
           </NavLink>
@@ -159,19 +159,19 @@ export function UserShell({ children }) {
       <nav className="dock" aria-label="Main">
         <NavLink to="/app" end>
           <span className="dock-ico"><DashIcon name="home" /></span>
-          Home
+          Dashboard
         </NavLink>
-        <NavLink to="/app/team">
-          <span className="dock-ico"><DashIcon name="team" /></span>
-          Team
+        <NavLink to="/app/work">
+          <span className="dock-ico"><DashIcon name="task" /></span>
+          Work
         </NavLink>
         <NavLink to="/app/wallet" className={({ isActive }) => (isActive ? "dock-main active" : "dock-main")}>
           <span className="dock-ico"><DashIcon name="wallet" /></span>
           Wallet
         </NavLink>
-        <NavLink to="/app/plans">
-          <span className="dock-ico"><DashIcon name="plan" /></span>
-          Plans
+        <NavLink to="/app/rewards">
+          <span className="dock-ico"><DashIcon name="level" /></span>
+          Levels
         </NavLink>
         <button type="button" className={open ? "on" : ""} onClick={() => setOpen(true)}>
           <span className="dock-ico"><DashIcon name="menu" /></span>
@@ -235,6 +235,7 @@ function TeamBoard({ home, copied, onCopy }) {
         <div className="team-pills">
           <span><WalletGlyph name="people" /> {home.team_total || 0} Total</span>
           <span><WalletGlyph name="check" /> {home.active_team || 0} Active</span>
+          <span><WalletGlyph name="clock" /> {Math.max(0, (home.team_total || 0) - (home.active_team || 0))} Pending</span>
         </div>
         <div className="level-pill"><WalletGlyph name="layers" /> Level {user.level || 0}</div>
       </section>
@@ -264,62 +265,22 @@ export function Dashboard() {
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
-  const earn = data.earnings || {};
   const user = data.user;
-  const stats = [
-    ["earnings", "#fff0f6", "#e91e8c", "Total earnings", `Rs ${earn.total}`],
-    ["direct", "#eefbf3", "#15803d", "Direct referral", `Rs ${earn.direct}`],
-    ["indirect", "#f3e8ff", "#7c3aed", "Indirect referral", `Rs ${earn.indirect}`],
-    ["ads", "#fff7ed", "#c2410c", "Ads earning", `Rs ${earn.ads}`],
-    ["team", "#fce7f3", "#be185d", "Active team", `${data.active_team} / ${data.team_total}`],
-    ["level", "#fef3c7", "#b45309", "Level", `Level ${user.level}`],
-    ["plan", "#e0f2fe", "#0369a1", "Plan", user.plan || "No plan"],
-    ["task", "#ecfdf5", "#047857", "Today's work", `${data.tasks_today} / ${data.daily_limit}`],
-  ];
   const menus = [
     ["/app/work", "task", "#ecfdf5", "#047857", "Work"],
-    ["/app/plans", "plan", "#e0f2fe", "#0369a1", "Plans"],
     ["/app/wallet", "wallet", "#fff0f6", "#e91e8c", "Wallet"],
-    ["/app/team", "team", "#fce7f3", "#be185d", "Referred Users"],
     ["/app/rewards", "level", "#fef3c7", "#b45309", "Levels & Rewards"],
+    ["/app/team", "team", "#fce7f3", "#be185d", "My Team"],
     ["/app/channels", "ads", "#fff7ed", "#c2410c", "Official Channels"],
     ["/app/withdraw", "withdraw", "#f3e8ff", "#7c3aed", "Withdraw"],
   ];
   return (
     <div className="dash">
-      <TeamBoard home={data} copied={copied} onCopy={copy} />
-      <div className="balance-card">
-        <span className="big-icon pink-icon"><DashIcon name="wallet" /></span>
-        <div>
-          <div className="sub">Wallet balance</div>
-          <strong>Rs {user.balance}</strong>
-          <div className="sub">Withdrawn Rs {earn.withdrawn}</div>
-        </div>
-      </div>
-      <Link className="buy-banner" to="/app/plans">
-        <span className="big-icon pink-icon"><DashIcon name="plan" /></span>
-        <div>
-          <b>Buy a plan</b>
-          <div className="sub">JazzCash or Easypaisa. Your plan starts after approval.</div>
-        </div>
-      </Link>
-      <div className="sec">Your earnings</div>
-      <div className="earn-grid">
-        {stats.map(([icon, bg, color, label, value], index) => (
-          <div className="earn-card" key={label} style={{ animationDelay: `${index * 70}ms` }}>
-            <span className="big-icon" style={{ background: bg, color }}><DashIcon name={icon} /></span>
-            <div>
-              <div className="sub">{label}</div>
-              <b>{value}</b>
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="detail-card">
-        <div><span>Phone</span><b>{user.phone || "—"}</b></div>
-        <div><span>Referral code</span><b>{user.referral_code}</b></div>
-        <div><span>Account</span><b>{user.account_status}</b></div>
-      </div>
+      <section className="home-id">
+        <h1>{user.full_name}</h1>
+        <p>{user.email}</p>
+        <button type="button" onClick={copy}>{copied ? "Copied" : "Copy Referral Link"}</button>
+      </section>
       <div className="notice"><i>📣</i><div><b>Your Notice</b><div className="marquee"><span>{data.notice}</span></div></div></div>
       <div className="sec">Quick Menu</div>
       <div className="grid">
@@ -330,7 +291,7 @@ export function Dashboard() {
           </Link>
         ))}
       </div>
-      <Link className="btn contact" to="/app/contact">Contact Us</Link>
+      <Link className="btn contact" to="/app/contact">Contact Task</Link>
     </div>
   );
 }
@@ -351,24 +312,52 @@ export function Work() {
   );
 }
 
+function withdrawalLabel(status) {
+  if (status === "pending") return "Pending";
+  if (status === "approved") return "Approved";
+  if (status === "success") return "Success";
+  if (status === "rejected") return "Rejected";
+  return status || "Pending";
+}
+
+function WithdrawalHistory({ rows }) {
+  return (
+    <div className="list withdraw-history" id="history">
+      {(rows || []).map((row) => (
+        <article className="withdraw-card" key={row.id}>
+          <div>
+            <b>Rs {moneyText(row.amount)}</b>
+            <div className="sub">{new Date(row.created_at).toLocaleString()}</div>
+            <div className="sub">{[row.method, row.account_name, row.account].filter(Boolean).join(" · ")}</div>
+          </div>
+          <span className={`status-badge ${row.status}`}>{withdrawalLabel(row.status)}</span>
+        </article>
+      ))}
+      {(rows || []).length === 0 && <p className="empty-note">No withdrawal yet.</p>}
+    </div>
+  );
+}
+
 export function Wallet() {
-  const { data, error } = useLoad("/api/user/home");
-  if (error) return <p className="pad">{error}</p>;
-  if (!data) return <p className="pad wallet-loading">Loading wallet...</p>;
-  const earn = data.earnings || {};
-  const wallet = data.wallet || {};
-  const staff = wallet.staff ?? earn.direct ?? "0";
-  const flowers = wallet.flowers ?? earn.ads ?? "0";
+  const home = useLoad("/api/user/home");
+  const history = useLoad("/api/user/withdrawals");
+  const location = useLocation();
+  useEffect(() => {
+    if (location.hash !== "#history") return;
+    document.getElementById("history")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [location.hash, history.data]);
+  if (home.error) return <p className="pad">{home.error}</p>;
+  if (!home.data) return <p className="pad wallet-loading">Loading wallet...</p>;
+  const wallet = home.data.wallet || {};
   const stats = [
-    ["check", "ok", "Withdrawn", moneyCompact(wallet.withdrawn ?? earn.withdrawn)],
-    ["clock", "wait", "Pending", moneyCompact(wallet.pending)],
-    ["x", "no", "Rejected", moneyCompact(wallet.rejected)],
+    ["clock", "wait", "Pending Withdrawal", moneyCompact(wallet.pending)],
+    ["x", "no", "Rejected Withdrawal", moneyCompact(wallet.rejected)],
   ];
   const actions = [
     ["/app/plans", "plus", "go", "Deposit"],
     ["/app/withdraw", "up", "out", "Withdraw"],
     ["/app/transactions", "list", "hist", "History"],
-    ["/app/withdraw#history", "clock", "whist", "W. History"],
+    ["/app/wallet#history", "clock", "whist", "W. History"],
   ];
   return (
     <div className="wallet-page">
@@ -377,14 +366,14 @@ export function Wallet() {
         <span className="blob b2" />
         <span className="blob b3" />
         <p>Current balance</p>
-        <h1>Rs {moneyText(data.user.balance)}</h1>
+        <h1>Rs {moneyText(home.data.user.balance)}</h1>
         <p className="bal-note">Referral & approved earnings only · Withdraw anytime</p>
         <div className="bal-actions">
           <Link className="pill solid" to="/app/withdraw"><WalletGlyph name="up" /> Withdraw</Link>
           <Link className="pill line" to="/app/plans"><WalletGlyph name="plus" /> Deposit</Link>
         </div>
       </section>
-      <div className="stat-row">
+      <div className="stat-row two">
         {stats.map(([icon, tone, label, value]) => (
           <article className="wstat" key={label}>
             <span className={`tone ${tone}`}><WalletGlyph name={icon} /></span>
@@ -394,22 +383,35 @@ export function Wallet() {
         ))}
       </div>
       <h2 className="sec-title"><i /> My Earnings</h2>
-      <div className="earn-pair">
+      <div className="earn-pair three">
         <article className="earn-tile">
           <span className="soft-ico people"><WalletGlyph name="people" /></span>
           <div>
-            <b>Rs {moneyText(staff)}</b>
+            <b>Rs {moneyText(wallet.staff)}</b>
             <span>Staff Earning</span>
+          </div>
+        </article>
+        <article className="earn-tile">
+          <span className="soft-ico people"><WalletGlyph name="layers" /></span>
+          <div>
+            <b>Rs {moneyText(wallet.indirect)}</b>
+            <span>Indirect Referral Earning</span>
+            <small>Level 2 Rs {moneyText(wallet.indirect_level2)} · Level 3 Rs {moneyText(wallet.indirect_level3)}</small>
           </div>
         </article>
         <article className="earn-tile">
           <span className="soft-ico bloom"><WalletGlyph name="sprout" /></span>
           <div>
-            <b>Rs {moneyText(flowers)}</b>
-            <span>Flowers Earn <span aria-hidden="true">🌸</span></span>
+            <b>Rs {moneyText(wallet.flowers)}</b>
+            <span>Flower Earning <span aria-hidden="true">🌸</span></span>
           </div>
         </article>
       </div>
+      <article className="today-box">
+        <span>Today Approved Withdrawal</span>
+        <strong>Rs {moneyText(wallet.approved_today)}</strong>
+        <p>Approved today only. Pending and rejected amounts stay out of this total.</p>
+      </article>
       <h2 className="sec-title"><i /> Quick Actions</h2>
       <div className="quick-row">
         {actions.map(([to, icon, tone, label]) => (
@@ -419,6 +421,8 @@ export function Wallet() {
           </Link>
         ))}
       </div>
+      <h2 className="sec-title"><i /> Withdrawal History</h2>
+      <WithdrawalHistory rows={history.data} />
     </div>
   );
 }
@@ -466,8 +470,9 @@ export function Team() {
     <>
       {home.error ? <p className="pad">{home.error}</p> : home.data ? <TeamBoard home={home.data} copied={copied} onCopy={copy} /> : <p className="pad">Loading...</p>}
       <h2 className="sec-title"><i /> Members</h2>
+      {(data || []).length === 0 && <p className="pad">No active members yet.</p>}
       <div className="list">{(data || []).map((m) => (
-        <div className="list-card" key={m.id}><div><b>{m.full_name}</b><div className="sub">{m.email}</div><div className="sub">{m.plan || "No plan"}</div></div><span className="badge" style={{ background: m.status === "Paid" ? "#d1fae5" : "#fff3cd", color: m.status === "Paid" ? "#065f46" : "#856404" }}>{m.status}</span></div>
+        <div className="list-card" key={m.id}><div><b>{m.full_name}</b><div className="sub">Level {m.level || 0}</div></div><span className="badge" style={{ background: "#d1fae5", color: "#065f46" }}>Active</span></div>
       ))}</div>
     </>
   );
@@ -503,38 +508,38 @@ export function Channels() {
 }
 
 export function Withdraw() {
-  const location = useLocation();
   const { data, reload } = useLoad("/api/user/withdrawals");
-  useEffect(() => {
-    if (location.hash !== "#history") return;
-    document.getElementById("history")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [location.hash, data]);
-  const [form, setForm] = useState({ amount: "", method: "JazzCash", account: "" });
+  const [form, setForm] = useState({ amount: "", method: "JazzCash", account_name: "", account: "" });
   const [error, setError] = useState("");
   const submit = async (e) => {
     e.preventDefault();
-    try { await api("/api/user/withdrawals", { method: "POST", body: form }); setError(""); reload(); } catch (err) { setError(err.message); }
+    try { await api("/api/user/withdrawals", { method: "POST", body: form }); setForm({ ...form, amount: "", account_name: "", account: "" }); setError(""); reload(); } catch (err) { setError(err.message); }
   };
   return (
     <>
-      <Back />
+      <Back to="/app/wallet" label="Wallet" />
       <h2 className="page-title">Withdraw</h2>
       <form className="pad" onSubmit={submit}>
-        <input placeholder="Amount" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
-        <select value={form.method} onChange={(e) => setForm({ ...form, method: e.target.value })}><option>JazzCash</option><option>Easypaisa</option></select>
-        <input placeholder="Account number" value={form.account} onChange={(e) => setForm({ ...form, account: e.target.value })} />
+        <label htmlFor="withdraw-amount">Amount</label>
+        <input id="withdraw-amount" placeholder="Amount" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
+        <label htmlFor="withdraw-method">Method</label>
+        <select id="withdraw-method" value={form.method} onChange={(e) => setForm({ ...form, method: e.target.value })}><option>JazzCash</option><option>Easypaisa</option></select>
+        <label htmlFor="account-name">Account name</label>
+        <input id="account-name" placeholder="Account name" value={form.account_name} onChange={(e) => setForm({ ...form, account_name: e.target.value })} />
+        <label htmlFor="account-number">Account number</label>
+        <input id="account-number" placeholder="03xxxxxxxxx" value={form.account} onChange={(e) => setForm({ ...form, account: e.target.value })} />
         <button className="btn" style={{ marginTop: 10 }}>Submit</button>
         {error && <div className="error">{error}</div>}
       </form>
-      <div className="sec" id="history">Withdrawal History</div>
-      <div className="list">{(data || []).map((w) => <div className="list-card" key={w.id}><div><b>Rs {w.amount}</b><div className="sub">{w.method} · {w.account}</div></div><span>{w.status}</span></div>)}</div>
+      <h2 className="sec-title" id="withdraw-page-history"><i /> Withdrawal History</h2>
+      <WithdrawalHistory rows={data} />
     </>
   );
 }
 
 export function Contact() {
   const { data } = useLoad("/api/user/contacts");
-  return <><Back /><h2 className="page-title">Contact Us</h2><div className="list">{(data || []).map((c) => <a className="list-card" key={c.id} href={`https://wa.me/${c.whatsapp}`}><div><b>{c.name}</b><div className="sub">{c.role}</div><div className="sub">{c.note}</div></div></a>)}</div></>;
+  return <><Back /><h2 className="page-title">Contact Tasks</h2><div className="list">{(data || []).map((c) => <a className="list-card" key={c.id} href={`https://wa.me/${c.whatsapp}`}><div><b>{c.name}</b><div className="sub">{c.role}</div><div className="sub">{c.note}</div></div></a>)}</div></>;
 }
 
 export function Deposit() {
@@ -568,7 +573,7 @@ export function Deposit() {
   return (
     <>
       <Back />
-      <div className="hero"><h1>Plans</h1><p>Pay with JazzCash or Easypaisa. The plan starts after admin approval.</p></div>
+      <div className="hero"><h1>Plan Upgrade</h1><p>Pay with JazzCash or Easypaisa. The plan starts after admin approval.</p></div>
       {data.current_plan && <p className="pad">Current plan: <b>{data.current_plan}</b></p>}
       {data.pending_deposit && <p className="pad">Waiting approval: {data.pending_deposit.plan} · Rs {data.pending_deposit.amount}</p>}
       {data.pending_upgrade && <p className="pad">Upgrade waiting: {data.pending_upgrade.plan} · Rs {data.pending_upgrade.amount}</p>}

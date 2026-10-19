@@ -140,36 +140,11 @@ function PlanBadge({ name, color, text }) {
   return <span className="badge" style={{ background: color || "#fff3cd", color: text || "#856404" }}>{name}</span>;
 }
 
-function rs(value) {
-  const n = Number(String(value ?? "0").replace(/,/g, ""));
-  if (!Number.isFinite(n)) return "0.00";
-  return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function DeskIcon({ name }) {
-  const paths = {
-    hand: "M12 11V5.5a1.5 1.5 0 0 1 3 0V11M9 11V7.5a1.5 1.5 0 0 1 3 0V11M6.5 12.5 8 8.8a1.4 1.4 0 0 1 2.6.8V12M12 11c.2 2.2 1.2 3.2 3.2 3.2H17a3 3 0 0 1 3 3v.3M8 20h6.2a4 4 0 0 0 3.2-1.6",
-    cycle: "M20 12a8 8 0 0 1-13.5 5.8M4 12a8 8 0 0 1 13.5-5.8M16 3.5h2.2V6M8 20.5H5.8V18",
-    card: "M4 8h16v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zM4 11h16M8 15h3",
-    list: "M9 7h10M9 12h10M9 17h10M5 7h.01M5 12h.01M5 17h.01",
-    plus: "M12 7v10M7 12h10",
-    minus: "M7 12h10",
-    scale: "M12 4v16M8 20h8M12 6l-6 7h5M12 6l6 7h-5",
-    chart: "M5 19V10M10 19V6M15 19v-6M20 19V8",
-  };
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d={paths[name]} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
 export function AdminHome() {
   const data = useLoad("/api/admin/summary");
   if (!data) return <p>Loading...</p>;
   const hour = new Date().getHours();
   const hello = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
-  const money = data.money || {};
   const cards = [
     ["/admin/users?status=all", "Users", data.users, "Every account", "pink"],
     ["/admin/deposits", "New requests", data.pending_deposits, "Waiting slips", "amber"],
@@ -178,57 +153,8 @@ export function AdminHome() {
     ["/admin/today-users", "Approved today", data.approved_today, "New paid users", "green"],
     ["/admin/rejected", "Rejected", data.rejected_users, "Needs a second look", "rose"],
   ];
-  const desk = [
-    ["/admin/deposits?slip=all", "hand", "go", `Rs ${rs(money.deposited)}`, "Total Deposited", "View All"],
-    ["/admin/today-users", "cycle", "sun", String(money.approved_users_today ?? 0), "Today Approved Users", ""],
-    ["/admin/today-withdrawals", "cycle", "sun", `Rs ${rs(money.withdrawals_today)}`, "Today Withdrawals", ""],
-    ["/admin/deposits?slip=approved&today=1", "hand", "go", `Rs ${rs(money.received_today)}`, "Today Received Balance", "View All"],
-    ["/admin/withdrawals?wstatus=approved", "card", "mint", `Rs ${rs(money.withdrawn)}`, "Total Withdrawn", "View All"],
-  ];
-  const breakdown = [
-    ["/admin/transactions?category=ads", "list", "violet", `Rs ${rs(money.task)}`, "Total Task Earnings", `Today: Rs ${rs(money.task_today)}`, "ok"],
-    ["/admin/transactions?category=manual_add", "plus", "go", `Rs ${rs(money.manual_add)}`, "Manual Additions", `Today: Rs ${rs(money.manual_add_today)}`, "ok"],
-    ["/admin/transactions?category=manual_sub", "minus", "stop", `Rs ${rs(money.manual_sub)}`, "Manual Subtractions", `Today: Rs ${rs(money.manual_sub_today)}`, "no"],
-  ];
   return (
     <>
-      <section className="desk-banner">
-        <strong>{rs(money.referral)} Rs</strong>
-        <span>Referral Commissions</span>
-      </section>
-      <div className="money-list">
-        {desk.map(([to, icon, tone, value, label, view]) => (
-          <Link className="money-card" key={label} to={to}>
-            <span className={`money-ico ${tone}`}><DeskIcon name={icon} /></span>
-            <div>
-              <b>{value}</b>
-              <span>{label}</span>
-            </div>
-            {view ? <em>{view}</em> : null}
-          </Link>
-        ))}
-      </div>
-      <h2 className="desk-head"><span className="money-ico chart"><DeskIcon name="chart" /></span> Earnings Breakdown</h2>
-      <div className="money-list">
-        {breakdown.map(([to, icon, tone, value, label, today, pill]) => (
-          <Link className="money-card" key={label} to={to}>
-            <span className={`money-ico ${tone}`}><DeskIcon name={icon} /></span>
-            <div>
-              <i className={`today-pill ${pill}`}>{today}</i>
-              <b>{value}</b>
-              <span>{label}</span>
-            </div>
-            <em>View All</em>
-          </Link>
-        ))}
-        <div className="money-card plain">
-          <span className="money-ico ink"><DeskIcon name="scale" /></span>
-          <div>
-            <b>Rs {rs(money.balances)}</b>
-            <span>Users Balance</span>
-          </div>
-        </div>
-      </div>
       <div className="admin-hero">
         <p className="sub">{hello}</p>
         <h1>Flower Admin</h1>
@@ -369,7 +295,7 @@ export function Users({ status = "approved", title = "Approved users", searchabl
 function paymentDetail(row, kind) {
   const fields = [["Name", row.full_name], ["Email", row.email]];
   if (kind === "upgrade") fields.push(["From", row.from_plan], ["To", row.to_plan], ["Sender", row.sender || "—"], ["Method", row.method || "—"]);
-  else if (kind === "withdraw") fields.push(["Method", row.method], ["Account", row.account]);
+  else if (kind === "withdraw") fields.push(["Method", row.method], ["Account name", row.account_name || "—"], ["Account number", row.account]);
   else fields.push(["Plan", row.plan || "—"], ["Method", row.method || "—"], ["Sender", row.sender || "—"]);
   fields.push(["Amount", `Rs ${row.amount}`], ["Status", row.status]);
   const title = kind === "withdraw" ? "Withdrawal" : kind === "upgrade" ? "Plan upgrade" : "Payment slip";
@@ -456,13 +382,13 @@ function MoneyList({ path, actionPath, kind = "deposit" }) {
     <>
       <div className="table-wrap desktop-table"><table>
         <thead>{kind === "withdraw"
-          ? <tr><th>Name</th><th>Amount</th><th>Method</th><th>Account</th><th></th><th></th></tr>
+          ? <tr><th>Name</th><th>Amount</th><th>Method</th><th>Account name</th><th>Account number</th><th></th><th></th></tr>
           : kind === "upgrade"
             ? <tr><th>Name</th><th>From</th><th>To</th><th>Amount</th><th>Sender</th><th>Slip</th><th></th></tr>
             : <tr><th>Name</th><th>Plan</th><th>Amount</th><th>Method</th><th>Sender</th><th>Slip</th><th></th></tr>}
         </thead>
         <tbody>{rows.map((row) => kind === "withdraw" ? (
-          <tr key={row.id}>{who(row)}<td>Rs {row.amount}</td><td>{row.method}</td><td>{row.account}</td><td>{actions(row)}</td><td><button className="view-btn" type="button" onClick={() => setDetail(paymentDetail(row, kind))}>View</button></td></tr>
+          <tr key={row.id}>{who(row)}<td>Rs {row.amount}</td><td>{row.method}</td><td>{row.account_name || "—"}</td><td>{row.account || "—"}</td><td>{actions(row)}</td><td><button className="view-btn" type="button" onClick={() => setDetail(paymentDetail(row, kind))}>View</button></td></tr>
         ) : kind === "upgrade" ? (
           <tr key={row.id}>{who(row)}<td>{row.from_plan}</td><td>{row.to_plan}</td><td>Rs {row.amount}</td><td>{row.sender || "—"}</td><td><SlipView src={row.screenshot} onOpen={() => setDetail(paymentDetail(row, kind))} /></td><td>{actions(row)}</td></tr>
         ) : (
@@ -473,7 +399,7 @@ function MoneyList({ path, actionPath, kind = "deposit" }) {
         <div className="lb-card" key={row.id}>
           <b>{row.full_name}</b>
           <div className="sub">{row.email}</div>
-          <div className="sub">{kind === "upgrade" ? `${row.from_plan} → ${row.to_plan}` : (row.plan || row.method)} · Rs {row.amount}{row.sender ? ` · ${row.sender}` : ""}{row.account ? ` · ${row.account}` : ""}</div>
+          <div className="sub">{kind === "upgrade" ? `${row.from_plan} → ${row.to_plan}` : (row.plan || row.method)} · Rs {row.amount}{row.sender ? ` · ${row.sender}` : ""}{row.account_name ? ` · ${row.account_name}` : ""}{row.account ? ` · ${row.account}` : ""}</div>
           <button className="view-btn" type="button" onClick={() => setDetail(paymentDetail(row, kind))}>Open details</button>
           {actions(row)}
         </div>
