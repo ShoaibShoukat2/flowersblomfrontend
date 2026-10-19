@@ -6,11 +6,17 @@
     <link rel="icon" type="image/png" href="/favicon.png?v=20261019" />
     <link rel="apple-touch-icon" href="/logo.png?v=20261019" />
     <title>Flower</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Poppins:wght@400;500;600;700;800&display=swap" media="print" onload="this.media='all'" />
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+    <script>
+      window.setTimeout(function () {
+        var root = document.getElementById("root");
+        if (!root || root.childNodes.length) return;
+        root.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;font-family:sans-serif;background:#fdf5f9;color:#1a1a2e"><div><p style="font-size:18px;margin:0 0 12px">Page open nahi ho rahi.</p><button type="button" onclick="location.reload()" style="background:#e21878;color:#fff;border:0;border-radius:999px;padding:12px 22px;font-size:16px">Reload</button></div></div>';
+      }, 8000);
+    </script>
   </body>
 </html>
