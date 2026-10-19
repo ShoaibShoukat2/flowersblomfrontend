@@ -1,4 +1,4 @@
-const LOGO = "/logo.png";
+const LOGO = "/logo.png?v=20261019";
 
 export function token() {
   return localStorage.getItem("flower_token") || "";

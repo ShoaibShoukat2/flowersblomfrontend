@@ -67,8 +67,8 @@ export function AdminShell({ children }) {
     <div className="admin">
       <aside className="side">
         <div className="brand"><img src={LOGO} alt="Flower" /><b>Flower Admin</b><span>Control desk</span></div>
-        <NavLinks counts={counts} />
-        <button className="btn" style={{ marginTop: 16 }} onClick={logout}>Logout</button>
+        <div className="side-nav"><NavLinks counts={counts} /></div>
+        <button className="btn" onClick={logout}>Logout</button>
       </aside>
       <div className="admin-col">
         <header className="admin-top">
@@ -79,8 +79,11 @@ export function AdminShell({ children }) {
         </header>
         <button className={open ? "drawer-backdrop on" : "drawer-backdrop"} aria-label="Close menu" onClick={() => setOpen(false)} />
         <aside className={open ? "admin-drawer on" : "admin-drawer"}>
-          <div className="brand"><img src={LOGO} alt="" /><b>Flower Admin</b></div>
-          <NavLinks counts={counts} onPick={() => setOpen(false)} />
+          <div className="drawer-head">
+            <div className="brand"><img src={LOGO} alt="" /><b>Flower Admin</b></div>
+            <button className="burger" type="button" aria-label="Close admin menu" onClick={() => setOpen(false)}><span /><span /><span /></button>
+          </div>
+          <div className="side-nav"><NavLinks counts={counts} onPick={() => setOpen(false)} /></div>
           <button className="btn" onClick={logout}>Logout</button>
         </aside>
         <main className="main">{children}</main>
@@ -137,11 +140,36 @@ function PlanBadge({ name, color, text }) {
   return <span className="badge" style={{ background: color || "#fff3cd", color: text || "#856404" }}>{name}</span>;
 }
 
+function rs(value) {
+  const n = Number(String(value ?? "0").replace(/,/g, ""));
+  if (!Number.isFinite(n)) return "0.00";
+  return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function DeskIcon({ name }) {
+  const paths = {
+    hand: "M12 11V5.5a1.5 1.5 0 0 1 3 0V11M9 11V7.5a1.5 1.5 0 0 1 3 0V11M6.5 12.5 8 8.8a1.4 1.4 0 0 1 2.6.8V12M12 11c.2 2.2 1.2 3.2 3.2 3.2H17a3 3 0 0 1 3 3v.3M8 20h6.2a4 4 0 0 0 3.2-1.6",
+    cycle: "M20 12a8 8 0 0 1-13.5 5.8M4 12a8 8 0 0 1 13.5-5.8M16 3.5h2.2V6M8 20.5H5.8V18",
+    card: "M4 8h16v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zM4 11h16M8 15h3",
+    list: "M9 7h10M9 12h10M9 17h10M5 7h.01M5 12h.01M5 17h.01",
+    plus: "M12 7v10M7 12h10",
+    minus: "M7 12h10",
+    scale: "M12 4v16M8 20h8M12 6l-6 7h5M12 6l6 7h-5",
+    chart: "M5 19V10M10 19V6M15 19v-6M20 19V8",
+  };
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d={paths[name]} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export function AdminHome() {
   const data = useLoad("/api/admin/summary");
   if (!data) return <p>Loading...</p>;
   const hour = new Date().getHours();
   const hello = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const money = data.money || {};
   const cards = [
     ["/admin/users?status=all", "Users", data.users, "Every account", "pink"],
     ["/admin/deposits", "New requests", data.pending_deposits, "Waiting slips", "amber"],
@@ -150,8 +178,57 @@ export function AdminHome() {
     ["/admin/today-users", "Approved today", data.approved_today, "New paid users", "green"],
     ["/admin/rejected", "Rejected", data.rejected_users, "Needs a second look", "rose"],
   ];
+  const desk = [
+    ["/admin/deposits?slip=all", "hand", "go", `Rs ${rs(money.deposited)}`, "Total Deposited", "View All"],
+    ["/admin/today-users", "cycle", "sun", String(money.approved_users_today ?? 0), "Today Approved Users", ""],
+    ["/admin/today-withdrawals", "cycle", "sun", `Rs ${rs(money.withdrawals_today)}`, "Today Withdrawals", ""],
+    ["/admin/deposits?slip=approved&today=1", "hand", "go", `Rs ${rs(money.received_today)}`, "Today Received Balance", "View All"],
+    ["/admin/withdrawals?wstatus=approved", "card", "mint", `Rs ${rs(money.withdrawn)}`, "Total Withdrawn", "View All"],
+  ];
+  const breakdown = [
+    ["/admin/transactions?category=ads", "list", "violet", `Rs ${rs(money.task)}`, "Total Task Earnings", `Today: Rs ${rs(money.task_today)}`, "ok"],
+    ["/admin/transactions?category=manual_add", "plus", "go", `Rs ${rs(money.manual_add)}`, "Manual Additions", `Today: Rs ${rs(money.manual_add_today)}`, "ok"],
+    ["/admin/transactions?category=manual_sub", "minus", "stop", `Rs ${rs(money.manual_sub)}`, "Manual Subtractions", `Today: Rs ${rs(money.manual_sub_today)}`, "no"],
+  ];
   return (
     <>
+      <section className="desk-banner">
+        <strong>{rs(money.referral)} Rs</strong>
+        <span>Referral Commissions</span>
+      </section>
+      <div className="money-list">
+        {desk.map(([to, icon, tone, value, label, view]) => (
+          <Link className="money-card" key={label} to={to}>
+            <span className={`money-ico ${tone}`}><DeskIcon name={icon} /></span>
+            <div>
+              <b>{value}</b>
+              <span>{label}</span>
+            </div>
+            {view ? <em>{view}</em> : null}
+          </Link>
+        ))}
+      </div>
+      <h2 className="desk-head"><span className="money-ico chart"><DeskIcon name="chart" /></span> Earnings Breakdown</h2>
+      <div className="money-list">
+        {breakdown.map(([to, icon, tone, value, label, today, pill]) => (
+          <Link className="money-card" key={label} to={to}>
+            <span className={`money-ico ${tone}`}><DeskIcon name={icon} /></span>
+            <div>
+              <i className={`today-pill ${pill}`}>{today}</i>
+              <b>{value}</b>
+              <span>{label}</span>
+            </div>
+            <em>View All</em>
+          </Link>
+        ))}
+        <div className="money-card plain">
+          <span className="money-ico ink"><DeskIcon name="scale" /></span>
+          <div>
+            <b>Rs {rs(money.balances)}</b>
+            <span>Users Balance</span>
+          </div>
+        </div>
+      </div>
       <div className="admin-hero">
         <p className="sub">{hello}</p>
         <h1>Flower Admin</h1>
@@ -432,7 +509,8 @@ function QueueFilters({ param = "slip" }) {
 export function Deposits() {
   const [params] = useSearchParams();
   const status = params.get("slip") || "pending";
-  return <><h1>New user Request</h1><QueueFilters /><MoneyList path={`/api/admin/deposits?status=${status}`} actionPath="/api/admin/deposits" /></>;
+  const today = params.get("today") === "1" ? "&today=1" : "";
+  return <><h1>{today ? "Today Received Balance" : "New user Request"}</h1><QueueFilters /><MoneyList path={`/api/admin/deposits?status=${status}${today}`} actionPath="/api/admin/deposits" /></>;
 }
 export function TodayUsers() { return <><h1>Today Approved Users</h1><Users status="today" title="Today Approved Users" /></>; }
 export function Withdrawals() {
@@ -452,14 +530,15 @@ export function Gateways() {
   return <><h1>Easypaisa & JazzCash</h1><div className="stats">{(data || []).map((g) => <div className="stat" key={g.id}><b>{g.name}</b><div>{g.account_name}</div><div>{g.account_number}</div></div>)}</div></>;
 }
 export function Transactions() {
-  const [category, setCategory] = useState("");
+  const [params] = useSearchParams();
+  const [category, setCategory] = useState(params.get("category") || "");
   const [q, setQ] = useState("");
   const [detail, setDetail] = useState(null);
   const data = useLoad(`/api/admin/transactions?category=${category}&q=${encodeURIComponent(q)}`);
   return (
     <>
       <h1>Transactions</h1>
-      <div className="search-row"><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, email, or commission" /><select value={category} onChange={(e) => setCategory(e.target.value)}><option value="">All</option><option value="direct_traffic">Direct Referral Commission</option><option value="level_2">Level 2 Indirect Referral Commission</option><option value="level_3">Level 3 Indirect Referral Commission</option><option value="ads">Ads Earning</option><option value="withdraw">Withdraw</option></select></div>
+      <div className="search-row"><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, email, or commission" /><select value={category} onChange={(e) => setCategory(e.target.value)}><option value="">All</option><option value="direct_traffic">Direct Referral Commission</option><option value="level_2">Level 2 Indirect Referral Commission</option><option value="level_3">Level 3 Indirect Referral Commission</option><option value="ads">Ads Earning</option><option value="manual_add">Manual Additions</option><option value="manual_sub">Manual Subtractions</option><option value="withdraw">Withdraw</option></select></div>
       <div className="table-wrap desktop-table"><table><tbody>{(data || []).map((t) => <tr key={t.id}><td><b>{t.user_name}</b><div className="sub">{t.user_email}</div><div className="sub">{t.title}</div></td><td>Rs {t.amount}</td><td><button className="view-btn" type="button" onClick={() => setDetail({ title: t.title, subtitle: t.user_name, fields: [["User", t.user_name], ["Email", t.user_email], ["From", t.source_email || "—"], ["Plan", t.plan_name || "—"], ["Amount", `Rs ${t.amount}`]] })}>View</button></td></tr>)}</tbody></table></div>
       <div className="cards">{(data || []).map((t) => <button className="lb-card tap" type="button" key={t.id} onClick={() => setDetail({ title: t.title, subtitle: t.user_name, fields: [["User", t.user_name], ["Email", t.user_email], ["From", t.source_email || "—"], ["Plan", t.plan_name || "—"], ["Amount", `Rs ${t.amount}`]] })}><b>{t.user_name}</b><div className="sub">{t.title}</div><div className="sub">Rs {t.amount}</div></button>)}</div>
       {detail && <DetailModal detail={detail} onClose={() => setDetail(null)} onAction={() => setDetail(null)} />}

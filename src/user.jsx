@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
-import { api, clearSession, LOGO } from "./api";
+import { api, clearSession, LOGO, savedUser } from "./api";
 
 function useLoad(path) {
   const [data, setData] = useState(null);
@@ -23,23 +23,120 @@ const userNav = [
   ["/app/contact", "direct", "Contact Us"],
 ];
 
+function WalletGlyph({ name }) {
+  const paths = {
+    home: "M4 11.5 12 4l8 7.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z",
+    bell: "M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 19a2 2 0 0 0 4 0",
+    user: "M12 12a3.2 3.2 0 1 0 0-6.4A3.2 3.2 0 0 0 12 12zM6.2 19.2a5.8 5.8 0 0 1 11.6 0",
+    caret: "M7 10l5 5 5-5",
+    check: "M6.5 12.5 10 16l7.5-8",
+    clock: "M12 7v5l3 2M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z",
+    x: "M8 8l8 8M16 8l-8 8",
+    people: "M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM17 11.2a2.4 2.4 0 1 0 0-4.8 2.4 2.4 0 0 0 0 4.8zM3.5 19a5.5 5.5 0 0 1 11 0M14.2 19a4.2 4.2 0 0 1 6.3-3.6",
+    sprout: "M12 21V11M12 11c0-4 3.2-6.2 6.5-6.2C17.2 9 14.8 11 12 11zM12 14c0-3-2.6-5.2-5.4-5.2C7.6 12 9.6 14 12 14z",
+    plus: "M12 6v12M6 12h12",
+    up: "M12 19V6M7 11l5-5 5 5",
+    list: "M8 7h12M8 12h12M8 17h12M4 7h.01M4 12h.01M4 17h.01",
+  };
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d={paths[name]} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function pageInfo(pathname) {
+  const pages = [
+    ["/app/plans", "Buy a plan", "Plans"],
+    ["/app/deposit", "Deposit", "Deposit"],
+    ["/app/work", "Work", "Work"],
+    ["/app/wallet", "My Wallet", "My Wallet"],
+    ["/app/transactions", "History", "Transactions"],
+    ["/app/team", "Team", "Team"],
+    ["/app/rewards", "Levels & Rewards", "Rewards"],
+    ["/app/channels", "Official Channels", "Channels"],
+    ["/app/withdraw", "Withdraw", "Withdraw"],
+    ["/app/contact", "Contact Us", "Contact"],
+  ];
+  const hit = pages.find(([path]) => pathname === path);
+  return hit ? { title: hit[1], crumb: hit[2] } : { title: "Dashboard", crumb: "Dashboard" };
+}
+
+function moneyText(value, digits = 2) {
+  const n = Number(String(value ?? "0").replace(/,/g, ""));
+  if (!Number.isFinite(n)) return digits ? "0.00" : "0";
+  return n.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+
+function moneyCompact(value) {
+  const n = Number(String(value ?? "0").replace(/,/g, ""));
+  if (!Number.isFinite(n)) return "0";
+  if (Math.abs(n - Math.round(n)) < 0.001) return Math.round(n).toLocaleString("en-US");
+  return moneyText(n);
+}
+
 export function UserShell({ children }) {
   const [open, setOpen] = useState(false);
+  const [bell, setBell] = useState(false);
+  const [profile, setProfile] = useState(false);
+  const [notice, setNotice] = useState("");
   const location = useLocation();
-  useEffect(() => { setOpen(false); }, [location.pathname]);
+  const meta = pageInfo(location.pathname);
+  const session = savedUser();
+  useEffect(() => { setOpen(false); setBell(false); setProfile(false); }, [location.pathname]);
   useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
     return () => { document.body.style.overflow = ""; };
   }, [open]);
+  useEffect(() => {
+    api("/api/user/home").then((data) => setNotice(data.notice || "")).catch(() => {});
+  }, []);
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") { setOpen(false); setBell(false); setProfile(false); } };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  const popOpen = bell || profile;
   return (
     <div className="phone">
+      {popOpen && <button className="pop-back" aria-label="Close" onClick={() => { setBell(false); setProfile(false); }} />}
       <header className="user-bar">
         <button className="burger" aria-label="Open menu" onClick={() => setOpen(true)}>
           <span /><span /><span />
         </button>
-        <img src={LOGO} alt="" />
-        <b>Flower</b>
-        <Link className="buy-pill" to="/app/plans">Buy plan</Link>
+        <div className="bar-title">
+          <b>{meta.title}</b>
+          <div className="crumb">
+            <Link to="/app" aria-label="Home"><WalletGlyph name="home" /></Link>
+            <span>/</span>
+            <em>{meta.crumb}</em>
+          </div>
+        </div>
+        <div className="bar-actions">
+          <button className="icon-btn" aria-label="Notices" aria-expanded={bell} onClick={() => { setBell((v) => !v); setProfile(false); }}>
+            <WalletGlyph name="bell" />
+            {notice ? <i className="dot" /> : null}
+          </button>
+          {bell && (
+            <div className="pop notice-pop">
+              <b>Notices</b>
+              <p>{notice || "You're all caught up."}</p>
+            </div>
+          )}
+          <button className="profile-btn" aria-label="Account menu" aria-expanded={profile} onClick={() => { setProfile((v) => !v); setBell(false); }}>
+            <WalletGlyph name="user" />
+            <WalletGlyph name="caret" />
+          </button>
+          {profile && (
+            <div className="pop profile-pop">
+              <b>{session?.full_name || "Your account"}</b>
+              <p>{session?.email || ""}</p>
+              <Link to="/app/wallet">My Wallet</Link>
+              <Link to="/app">Dashboard</Link>
+              <button type="button" onClick={() => { clearSession(); window.location.href = "/login"; }}>Logout</button>
+            </div>
+          )}
+        </div>
       </header>
       <button className={open ? "drawer-backdrop on" : "drawer-backdrop"} aria-label="Close menu" onClick={() => setOpen(false)} />
       <aside className={open ? "drawer on" : "drawer"}>
@@ -211,18 +308,74 @@ export function Work() {
 }
 
 export function Wallet() {
-  const home = useLoad("/api/user/home");
-  const tx = useLoad("/api/user/transactions");
+  const { data, error } = useLoad("/api/user/home");
+  if (error) return <p className="pad">{error}</p>;
+  if (!data) return <p className="pad wallet-loading">Loading wallet...</p>;
+  const earn = data.earnings || {};
+  const wallet = data.wallet || {};
+  const staff = wallet.staff ?? earn.direct ?? "0";
+  const flowers = wallet.flowers ?? earn.ads ?? "0";
+  const stats = [
+    ["check", "ok", "Withdrawn", moneyCompact(wallet.withdrawn ?? earn.withdrawn)],
+    ["clock", "wait", "Pending", moneyCompact(wallet.pending)],
+    ["x", "no", "Rejected", moneyCompact(wallet.rejected)],
+  ];
+  const actions = [
+    ["/app/plans", "plus", "go", "Deposit"],
+    ["/app/withdraw", "up", "out", "Withdraw"],
+    ["/app/transactions", "list", "hist", "History"],
+    ["/app/withdraw#history", "clock", "whist", "W. History"],
+  ];
   return (
-    <>
-      <Back />
-      <div className="hero"><div className="sub">Wallet balance</div><h1>Rs {home.data?.user.balance || "0.00"}</h1></div>
-      <div className="list">
-        <Link className="btn" to="/app/transactions">Transaction History</Link>
-        <Link className="btn ghost" to="/app/withdraw">Withdraw History</Link>
-        {(tx.data || []).slice(0, 5).map((row) => <Tx key={row.id} row={row} />)}
+    <div className="wallet-page">
+      <section className="bal-hero">
+        <span className="blob b1" />
+        <span className="blob b2" />
+        <span className="blob b3" />
+        <p>Current balance</p>
+        <h1>Rs {moneyText(data.user.balance)}</h1>
+        <p className="bal-note">Referral & approved earnings only · Withdraw anytime</p>
+        <div className="bal-actions">
+          <Link className="pill solid" to="/app/withdraw"><WalletGlyph name="up" /> Withdraw</Link>
+          <Link className="pill line" to="/app/plans"><WalletGlyph name="plus" /> Deposit</Link>
+        </div>
+      </section>
+      <div className="stat-row">
+        {stats.map(([icon, tone, label, value]) => (
+          <article className="wstat" key={label}>
+            <span className={`tone ${tone}`}><WalletGlyph name={icon} /></span>
+            <b>Rs {value}</b>
+            <span>{label}</span>
+          </article>
+        ))}
       </div>
-    </>
+      <h2 className="sec-title"><i /> My Earnings</h2>
+      <div className="earn-pair">
+        <article className="earn-tile">
+          <span className="soft-ico people"><WalletGlyph name="people" /></span>
+          <div>
+            <b>Rs {moneyText(staff)}</b>
+            <span>Staff Earning</span>
+          </div>
+        </article>
+        <article className="earn-tile">
+          <span className="soft-ico bloom"><WalletGlyph name="sprout" /></span>
+          <div>
+            <b>Rs {moneyText(flowers)}</b>
+            <span>Flowers Earn <span aria-hidden="true">🌸</span></span>
+          </div>
+        </article>
+      </div>
+      <h2 className="sec-title"><i /> Quick Actions</h2>
+      <div className="quick-row">
+        {actions.map(([to, icon, tone, label]) => (
+          <Link key={label} to={to}>
+            <span className={`qa ${tone}`}><WalletGlyph name={icon} /></span>
+            {label}
+          </Link>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -298,7 +451,12 @@ export function Channels() {
 }
 
 export function Withdraw() {
+  const location = useLocation();
   const { data, reload } = useLoad("/api/user/withdrawals");
+  useEffect(() => {
+    if (location.hash !== "#history") return;
+    document.getElementById("history")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [location.hash, data]);
   const [form, setForm] = useState({ amount: "", method: "JazzCash", account: "" });
   const [error, setError] = useState("");
   const submit = async (e) => {
@@ -316,7 +474,7 @@ export function Withdraw() {
         <button className="btn" style={{ marginTop: 10 }}>Submit</button>
         {error && <div className="error">{error}</div>}
       </form>
-      <div className="sec">Withdrawal History</div>
+      <div className="sec" id="history">Withdrawal History</div>
       <div className="list">{(data || []).map((w) => <div className="list-card" key={w.id}><div><b>Rs {w.amount}</b><div className="sub">{w.method} · {w.account}</div></div><span>{w.status}</span></div>)}</div>
     </>
   );
@@ -447,13 +605,12 @@ export function Login({ role = "user" }) {
         <h2>{role === "admin" ? "Admin login" : "Welcome back"}</h2>
         <p className="muted">{role === "admin" ? "Open the Flower admin dashboard" : "Sign in and continue your daily earning"}</p>
         <label htmlFor="identity">Email, username, or phone</label>
-        <input id="identity" value={identity} onChange={(e) => setIdentity(e.target.value)} placeholder="aisha@flower.test" autoComplete="username" inputMode="email" />
+        <input id="identity" value={identity} onChange={(e) => setIdentity(e.target.value)} placeholder="name@email.com" autoComplete="username" inputMode="email" />
         <label htmlFor="password">Password</label>
         <PasswordField id="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter your password" autoComplete="current-password" />
         <button className="btn" style={{ marginTop: 18 }}>Sign in</button>
         {error && <div className="error">{error}</div>}
         {role === "user" && <p className="auth-switch">New here? <Link to="/register">Create an account</Link></p>}
-        <p className="demo-note">Demo {role === "admin" ? "shoaib@gmail.com / shoaib123" : "aisha@flower.test / Flower123"}</p>
       </form>
     </AuthShell>
   );
