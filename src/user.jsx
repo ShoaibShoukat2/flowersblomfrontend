@@ -453,7 +453,7 @@ export function Login({ role = "user" }) {
         <button className="btn" style={{ marginTop: 18 }}>Sign in</button>
         {error && <div className="error">{error}</div>}
         {role === "user" && <p className="auth-switch">New here? <Link to="/register">Create an account</Link></p>}
-        <p className="demo-note">Demo {role === "admin" ? "admin@flower.test / Admin123" : "aisha@flower.test / Flower123"}</p>
+        <p className="demo-note">Demo {role === "admin" ? "shoaib@gmail.com / shoaib123" : "aisha@flower.test / Flower123"}</p>
       </form>
     </AuthShell>
   );

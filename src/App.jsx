@@ -1,6 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { savedUser } from "./api";
-import { AdminHome, AdminShell, Channels, Contacts, Deposits, Gateways, Leaderboard, Levels, Referrals, Rejected, Rewards, Settings, TodayUsers, TodayWithdrawals, Transactions as AdminTransactions, Upgrades, UserDetail, Users, Withdrawals } from "./admin";
+import { AdminHome, AdminShell, Analytics, Channels, Contacts, Deposits, Gateways, Leaderboard, Levels, Referrals, Rejected, Rewards, Settings, TodayUsers, TodayWithdrawals, Transactions as AdminTransactions, Upgrades, UserDetail, Users, Withdrawals } from "./admin";
 import { Channels as UserChannels, Contact, Dashboard, Deposit, Login, Register, Rewards as UserRewards, Team, Transactions, UserShell, Wallet, Withdraw, Work } from "./user";
 
 function guard(role, child) {
@@ -28,6 +28,7 @@ export default function App() {
       <Route path="/app/deposit" element={guard("user", <UserShell><Deposit /></UserShell>)} />
       <Route path="/app/plans" element={guard("user", <UserShell><Deposit /></UserShell>)} />
       <Route path="/admin" element={guard("admin", <AdminShell><AdminHome /></AdminShell>)} />
+      <Route path="/admin/analytics" element={guard("admin", <AdminShell><Analytics /></AdminShell>)} />
       <Route path="/admin/users" element={guard("admin", <AdminShell><Users searchable /></AdminShell>)} />
       <Route path="/admin/users/:id" element={guard("admin", <AdminShell><UserDetail /></AdminShell>)} />
       <Route path="/admin/leaderboard" element={guard("admin", <AdminShell><Leaderboard /></AdminShell>)} />
