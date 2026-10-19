@@ -294,7 +294,7 @@ export function Users({ status = "approved", title = "Approved users", searchabl
 
 function SlipImage({ src }) {
   const [failed, setFailed] = useState(false);
-  if (!src || failed) return <div className="slip-empty">{failed ? "Slip could not be opened." : "No slip uploaded"}</div>;
+  if (!src || failed) return <div className="slip-empty">{failed ? "Slip could not be opened." : "Screenshot did not reach the server. Ask the user to upload it again."}</div>;
   return <img className="modal-slip" src={src} alt="Payment slip" onError={() => setFailed(true)} />;
 }
 

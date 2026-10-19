@@ -715,7 +715,16 @@ export function Deposit() {
   const [message, setMessage] = useState("");
   const [formError, setFormError] = useState("");
   const [sending, setSending] = useState(false);
+  const pending = data?.pending_deposit;
+  const pendingUpgrade = data?.pending_upgrade;
   useEffect(() => () => { if (shotUrl) URL.revokeObjectURL(shotUrl); }, [shotUrl]);
+  useEffect(() => {
+    const waiting = pending?.has_screenshot ? null : pending || (pendingUpgrade?.has_screenshot ? null : pendingUpgrade);
+    if (!waiting) return;
+    setPlanId((current) => current || String(waiting.plan_id || ""));
+    if (waiting.method) setMethod(waiting.method);
+    setSender((current) => current || waiting.sender || "");
+  }, [pending, pendingUpgrade]);
   if (error) return <p className="pad">{error}</p>;
   if (!data) return <p className="pad">Loading...</p>;
   const chosen = (data.plans || []).find((plan) => String(plan.id) === String(planId));
@@ -760,6 +769,7 @@ export function Deposit() {
       {data.current_plan && <p className="pad">Current plan: <b>{data.current_plan}</b></p>}
       {data.pending_deposit && <p className="pad">Waiting approval: {data.pending_deposit.plan} · Rs {data.pending_deposit.amount}</p>}
       {data.pending_upgrade && <p className="pad">Upgrade waiting: {data.pending_upgrade.plan} · Rs {data.pending_upgrade.amount}</p>}
+      {(data.pending_deposit && !data.pending_deposit.has_screenshot) || (data.pending_upgrade && !data.pending_upgrade.has_screenshot) ? <p className="pad lock-note">The payment is saved, but the screenshot did not upload. Choose the photo again. Wait until its preview appears, then submit.</p> : null}
       <div className="plan-grid">
         {(data.plans || []).map((plan) => {
           const currentPrice = Number((data.plans || []).find((item) => item.id === data.current_plan_id)?.price || 0);
