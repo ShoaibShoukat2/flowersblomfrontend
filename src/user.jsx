@@ -586,8 +586,6 @@ export function Deposit() {
           );
         })}
       </div>
-      <div className="sec">Send payment to</div>
-      <div className="list">{(data.gateways || []).map((g) => <div className="list-card" key={g.id}><div><b>{g.name}</b><div className="sub">{g.account_name}</div></div><b>{g.account_number}</b></div>)}</div>
       <form className="pad plan-form" onSubmit={submit}>
         <label>Selected plan</label>
         <input readOnly value={chosen ? `${chosen.name} · Rs ${chosen.price}` : "Tap a plan above"} />
