@@ -114,7 +114,7 @@ function DetailModal({ detail, onClose, onAction }) {
           </div>
           <button className="modal-x" type="button" onClick={onClose}>Close</button>
         </div>
-        {detail.image ? <img className="modal-slip" src={detail.image} alt="Payment slip" /> : <div className="slip-empty">No slip uploaded</div>}
+        <SlipImage src={detail.image} />
         <div className="modal-fields">
           {detail.fields.map(([label, value]) => <div key={label}><span>{label}</span><b>{value || "—"}</b></div>)}
         </div>
@@ -290,6 +290,12 @@ export function Users({ status = "approved", title = "Approved users", searchabl
       {data && data.length === 0 && <p>No users match this search.</p>}
     </>
   );
+}
+
+function SlipImage({ src }) {
+  const [failed, setFailed] = useState(false);
+  if (!src || failed) return <div className="slip-empty">{failed ? "Slip could not be opened." : "No slip uploaded"}</div>;
+  return <img className="modal-slip" src={src} alt="Payment slip" onError={() => setFailed(true)} />;
 }
 
 function paymentDetail(row, kind) {

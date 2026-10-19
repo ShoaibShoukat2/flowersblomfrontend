@@ -676,33 +676,82 @@ export function Contact() {
   return <><Back /><h2 className="page-title">Contact Tasks</h2><div className="list">{(data || []).map((c) => <a className="list-card" key={c.id} href={`https://wa.me/${c.whatsapp}`}><div><b>{c.name}</b><div className="sub">{c.role}</div><div className="sub">{c.note}</div></div></a>)}</div></>;
 }
 
+function fitScreenshot(file) {
+  return new Promise((resolve) => {
+    const image = new Image();
+    const url = URL.createObjectURL(file);
+    image.onload = () => {
+      const maxSide = 1600;
+      const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
+      const width = Math.max(1, Math.round(image.width * scale));
+      const height = Math.max(1, Math.round(image.height * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const pen = canvas.getContext("2d");
+      pen.fillStyle = "#ffffff";
+      pen.fillRect(0, 0, width, height);
+      pen.drawImage(image, 0, 0, width, height);
+      URL.revokeObjectURL(url);
+      canvas.toBlob((blob) => {
+        resolve(blob ? new File([blob], "payment.jpg", { type: "image/jpeg" }) : file);
+      }, "image/jpeg", 0.72);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(file);
+    };
+    image.src = url;
+  });
+}
+
 export function Deposit() {
   const { data, error, reload } = useLoad("/api/user/plans");
   const [planId, setPlanId] = useState("");
   const [method, setMethod] = useState("JazzCash");
   const [sender, setSender] = useState("");
+  const [shot, setShot] = useState(null);
+  const [shotUrl, setShotUrl] = useState("");
   const [message, setMessage] = useState("");
   const [formError, setFormError] = useState("");
+  const [sending, setSending] = useState(false);
+  useEffect(() => () => { if (shotUrl) URL.revokeObjectURL(shotUrl); }, [shotUrl]);
   if (error) return <p className="pad">{error}</p>;
   if (!data) return <p className="pad">Loading...</p>;
   const chosen = (data.plans || []).find((plan) => String(plan.id) === String(planId));
+  const chooseShot = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (shotUrl) URL.revokeObjectURL(shotUrl);
+    setShot(file || null);
+    setShotUrl(file ? URL.createObjectURL(file) : "");
+  };
   const submit = async (e) => {
     e.preventDefault();
     setFormError("");
     setMessage("");
+    if (!shot) {
+      setFormError("Payment screenshot is required.");
+      return;
+    }
+    setSending(true);
     try {
+      const picture = await fitScreenshot(shot);
       const body = new FormData();
       body.append("plan_id", planId);
       body.append("sender", sender);
       body.append("method", method);
-      const file = e.target.screenshot.files[0];
-      if (file) body.append("screenshot", file);
+      body.append("screenshot", picture);
       const res = await api("/api/user/deposits", { method: "POST", body });
       setMessage(res.kind === "upgrade" ? "Upgrade request sent. Admin will approve it." : "Payment sent. Admin will approve your plan.");
       setPlanId("");
       setSender("");
+      setShot(null);
+      if (shotUrl) URL.revokeObjectURL(shotUrl);
+      setShotUrl("");
+      e.target.reset();
       reload();
     } catch (err) { setFormError(err.message); }
+    finally { setSending(false); }
   };
   return (
     <>
@@ -733,8 +782,9 @@ export function Deposit() {
         <label>Sender number</label>
         <input placeholder="03xxxxxxxxx" value={sender} onChange={(e) => setSender(e.target.value)} />
         <label>Payment screenshot</label>
-        <input name="screenshot" type="file" accept="image/*" />
-        <button className="btn" style={{ marginTop: 14 }}>{data.current_plan ? "Request upgrade" : "Submit payment"}</button>
+        <input name="screenshot" type="file" accept="image/*" onChange={chooseShot} />
+        {shotUrl && <img className="shot-preview" src={shotUrl} alt="Selected payment screenshot" />}
+        <button className="btn" style={{ marginTop: 14 }} disabled={sending}>{sending ? "Sending..." : data.current_plan ? "Request upgrade" : "Submit payment"}</button>
         {formError && <div className="error">{formError}</div>}
         {message && <p>{message}</p>}
       </form>

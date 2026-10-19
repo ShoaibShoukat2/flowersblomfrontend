@@ -24,6 +24,7 @@ export async function api(path, options = {}) {
   if (token()) headers.Authorization = `Token ${token()}`;
   const response = await fetch(path, { ...options, headers, body: options.body instanceof FormData || typeof options.body === "string" || !options.body ? options.body : JSON.stringify(options.body) });
   const data = await response.json().catch(() => ({}));
+  if (response.status === 413) throw new Error("Payment screenshot is too large. Choose a smaller photo.");
   if (!response.ok) throw new Error(data.detail || "Request failed");
   return data;
 }
