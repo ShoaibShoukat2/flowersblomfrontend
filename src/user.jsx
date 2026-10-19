@@ -156,11 +156,27 @@ export function UserShell({ children }) {
         <button className="btn ghost" onClick={() => { clearSession(); window.location.href = "/login"; }}>Logout</button>
       </aside>
       <div className="user-body">{children}</div>
-      <nav className="dock">
-        <NavLink to="/app" end>Home</NavLink>
-        <NavLink to="/app/plans">Plans</NavLink>
-        <NavLink to="/app/wallet">Wallet</NavLink>
-        <button type="button" onClick={() => setOpen(true)}>Menu</button>
+      <nav className="dock" aria-label="Main">
+        <NavLink to="/app" end>
+          <span className="dock-ico"><DashIcon name="home" /></span>
+          Home
+        </NavLink>
+        <NavLink to="/app/team">
+          <span className="dock-ico"><DashIcon name="team" /></span>
+          Team
+        </NavLink>
+        <NavLink to="/app/wallet" className={({ isActive }) => (isActive ? "dock-main active" : "dock-main")}>
+          <span className="dock-ico"><DashIcon name="wallet" /></span>
+          Wallet
+        </NavLink>
+        <NavLink to="/app/plans">
+          <span className="dock-ico"><DashIcon name="plan" /></span>
+          Plans
+        </NavLink>
+        <button type="button" className={open ? "on" : ""} onClick={() => setOpen(true)}>
+          <span className="dock-ico"><DashIcon name="menu" /></span>
+          Menu
+        </button>
       </nav>
     </div>
   );
@@ -182,6 +198,8 @@ function DashIcon({ name }) {
     plan: "M6 4h12v16H6zM9 8h6M9 12h6M9 16h3",
     task: "M8 6h11M8 12h11M8 18h11M4 6h.01M4 12h.01M4 18h.01",
     withdraw: "M12 4v12M7 11l5 5 5-5M5 20h14",
+    home: "M4 11.5 12 4l8 7.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z",
+    menu: "M5 7h14M5 12h14M5 17h14",
   };
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
