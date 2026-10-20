@@ -384,7 +384,7 @@ export function Work() {
       return;
     }
     if (!nextTask || task.slot !== nextTask.slot) {
-      setNote("Open the flower above this one first.");
+      setNote("Open the glowing flower first.");
       return;
     }
     busy.current = true;
@@ -417,50 +417,58 @@ export function Work() {
     if (nextTask && task.slot === nextTask.slot) return "ready";
     return "wait";
   };
+  const readyLeft = Math.max(0, limit - doneCount);
+  const ring = 2 * Math.PI * 54;
+  const ringOffset = ring - (meter / 100) * ring;
   return (
     <div className="task-room">
       <Back />
-      <section className="task-hero">
-        <span className="drift d1" />
-        <span className="drift d2" />
-        <span className="drift d3" />
-        <p>Task Room</p>
-        <h2>{doneCount >= limit && limit > 0 ? "Today's flowers are open" : "Open today's flowers"}</h2>
-        <div className="task-pills">
-          <span>Level {progress.level || 0}</span>
-          <span>Rs {progress.task_rate} each</span>
-          <span>{doneCount}/{limit} open</span>
+      <section className="garden">
+        <div className="live-pill"><i />Live Garden</div>
+        <h2><span>Bloom</span> <span>Tasks</span></h2>
+        <p>Pick a flower, watch it bloom, earn rewards</p>
+        <div className="garden-ring" aria-label={`${doneCount} of ${limit} flowers open`}>
+          <svg viewBox="0 0 140 140">
+            <circle cx="70" cy="70" r="54" />
+            <circle cx="70" cy="70" r="54" style={{ strokeDasharray: ring, strokeDashoffset: ringOffset }} />
+          </svg>
+          <i className="ring-dot" />
+          <div>
+            <b>{doneCount}</b>
+            <span>of</span>
+            <strong>{limit}</strong>
+          </div>
         </div>
-        <div className="task-meter" aria-hidden="true"><i style={{ width: `${meter}%` }} /></div>
-      </section>
-      {progress.locked && progress.message ? <LockAlert message={progress.message} shake={shake} /> : progress.message ? <p className="task-note">{progress.message}</p> : null}
-      {note && note !== progress.message && <p className="task-note locked">{note}</p>}
-      <ol className="task-vine">
-        {tasks.map((task, index) => {
-          const mode = modeFor(task);
-          return (
-            <li key={task.slot} className={`task-node is-${mode}`} style={{ animationDelay: `${index * 80}ms` }}>
+        <div className="garden-row">
+          <span className="garden-ico" aria-hidden="true"><i /><i /><b /></span>
+          <b>Garden Blooms</b>
+          <em>{readyLeft} ready</em>
+        </div>
+        {progress.locked && progress.message ? <LockAlert message={progress.message} shake={shake} /> : progress.message ? <p className="task-note">{progress.message}</p> : null}
+        {note && note !== progress.message && <p className="task-note locked">{note}</p>}
+        <div className="garden-grid">
+          {tasks.map((task, index) => {
+            const mode = modeFor(task);
+            return (
               <button
+                key={task.slot}
                 type="button"
-                className="task-hit"
+                className={`garden-card is-${mode}`}
                 disabled={mode === "done" || mode === "opening"}
                 onClick={() => finish(task)}
               >
+                <span>{task.title}</span>
                 <span className="bloom-wrap">
                   <TaskBloom mode={mode} tone={FLOWER_TONES[index % FLOWER_TONES.length]} />
                   {rewardPop && rewardPop.slot === task.slot && <b className="reward-float">+ Rs {rewardPop.amount}</b>}
                 </span>
-                <span className="task-copy">
-                  <b>{task.title}</b>
-                  <span>{task.detail}</span>
-                  <em>{mode === "done" ? "Opened" : mode === "opening" ? "Opening..." : `Rs ${task.reward}`}</em>
-                </span>
+                <em>{mode === "done" ? "Opened" : mode === "opening" ? "Opening..." : `Rs ${task.reward}`}</em>
               </button>
-            </li>
-          );
-        })}
-      </ol>
-      {tasks.length === 0 && <p className="task-note">No task is available right now.</p>}
+            );
+          })}
+        </div>
+        {tasks.length === 0 && <p className="task-note">No task is available right now.</p>}
+      </section>
     </div>
   );
 }
