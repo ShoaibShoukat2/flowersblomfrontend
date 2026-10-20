@@ -342,11 +342,29 @@ function TaskBloom({ mode, tone }) {
   );
 }
 
+function LockAlert({ message, shake }) {
+  return (
+    <div className={`lock-alert${shake ? " is-shake" : ""}`} role="alert">
+      <div className="lock-stage" aria-hidden="true">
+        <span className="lock-spark s1" />
+        <span className="lock-spark s2" />
+        <span className="lock-spark s3" />
+        <i className="lock-leaf l1" />
+        <i className="lock-leaf l2" />
+        <i className="lock-leaf l3" />
+        <span className="lock-bud"><b /></span>
+      </div>
+      <p>{message}</p>
+    </div>
+  );
+}
+
 export function Work() {
   const { data, error, reload } = useLoad("/api/user/tasks");
   const [note, setNote] = useState("");
   const [openingSlot, setOpeningSlot] = useState(null);
   const [rewardPop, setRewardPop] = useState(null);
+  const [shake, setShake] = useState(false);
   const busy = useRef(false);
   const alive = useRef(true);
   useEffect(() => () => { alive.current = false; }, []);
@@ -361,7 +379,8 @@ export function Work() {
   const finish = async (task) => {
     if (busy.current || task.done) return;
     if (progress.locked) {
-      setNote(progress.message || "Tasks are locked.");
+      setShake(false);
+      window.setTimeout(() => setShake(true), 30);
       return;
     }
     if (!nextTask || task.slot !== nextTask.slot) {
@@ -413,8 +432,8 @@ export function Work() {
         </div>
         <div className="task-meter" aria-hidden="true"><i style={{ width: `${meter}%` }} /></div>
       </section>
-      {progress.message && <p className={progress.locked ? "task-note locked" : "task-note"}>{progress.message}</p>}
-      {note && <p className="task-note locked">{note}</p>}
+      {progress.locked && progress.message ? <LockAlert message={progress.message} shake={shake} /> : progress.message ? <p className="task-note">{progress.message}</p> : null}
+      {note && note !== progress.message && <p className="task-note locked">{note}</p>}
       <ol className="task-vine">
         {tasks.map((task, index) => {
           const mode = modeFor(task);

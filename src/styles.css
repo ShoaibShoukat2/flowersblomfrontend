@@ -887,6 +887,93 @@ button.lb-card.tap { width: 100%; text-align: left; font: inherit; color: inheri
 @keyframes drift { 0%, 100% { transform: translateY(0) rotate(18deg); } 50% { transform: translateY(-8px) rotate(40deg); } }
 .task-note { margin: 0 16px 10px; padding: 12px 14px; border-radius: 16px; background: #fff; border: 1.5px solid #f0d0e4; color: #5c4a56; font-weight: 700; }
 .task-note.locked { color: #9d174d; border-color: #f9a8d4; background: #fff1f7; }
+.lock-alert {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  gap: 8px;
+  align-items: center;
+  margin: 0 16px 14px;
+  padding: 12px 14px 12px 8px;
+  border-radius: 24px;
+  color: #9d174d;
+  background:
+    radial-gradient(circle at 18% 20%, rgba(255, 255, 255, .85), transparent 36%),
+    linear-gradient(145deg, #fff7fb 0%, #ffe4f3 55%, #fff1f2 100%);
+  border: 1.5px solid #f9a8d4;
+  box-shadow: 0 16px 32px rgba(225, 29, 120, .12);
+  animation: lock-in .55s cubic-bezier(.16, .84, .28, 1) both;
+}
+.lock-alert.is-shake { animation: lock-shake .62s ease; }
+.lock-alert p { margin: 0; font-size: 14px; line-height: 1.45; font-weight: 800; }
+.lock-stage { position: relative; width: 84px; height: 84px; }
+.lock-bud {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: 34px;
+  height: 46px;
+  margin-left: -17px;
+  border-radius: 18px 18px 16px 16px;
+  background: linear-gradient(#fda4af, #e11d74);
+  transform-origin: 50% 100%;
+  animation: bud-bob 2.4s ease-in-out infinite;
+  box-shadow: 0 10px 16px rgba(190, 24, 93, .25);
+}
+.lock-bud b {
+  position: absolute;
+  left: 11px;
+  top: 16px;
+  width: 12px;
+  height: 10px;
+  border: 2px solid #fff;
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+}
+.lock-bud b::after {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: 8px;
+  width: 16px;
+  height: 12px;
+  border-radius: 3px;
+  background: #fff;
+}
+.lock-leaf {
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  width: 16px;
+  height: 28px;
+  margin-left: -8px;
+  border-radius: 16px 16px 4px 4px;
+  background: linear-gradient(#86efac, #16a34a);
+  transform-origin: 50% 100%;
+}
+.lock-leaf.l1 { transform: rotate(-34deg); }
+.lock-leaf.l2 { transform: rotate(34deg); }
+.lock-leaf.l3 { width: 12px; height: 20px; top: 16px; background: linear-gradient(#bbf7d0, #15803d); }
+.lock-spark {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50% 0 50% 50%;
+  background: #fb7185;
+  animation: spark-float 2.8s ease-in-out infinite;
+}
+.lock-spark.s1 { left: 8px; top: 14px; }
+.lock-spark.s2 { right: 6px; top: 10px; animation-delay: -.8s; background: #f9a8d4; }
+.lock-spark.s3 { left: 18px; bottom: 8px; animation-delay: -1.6s; background: #f472b6; }
+@keyframes lock-in { from { opacity: 0; transform: translateY(12px) scale(.96); } to { opacity: 1; transform: none; } }
+@keyframes lock-shake {
+  0%, 100% { transform: translateX(0) rotate(0); }
+  20% { transform: translateX(-6px) rotate(-1.4deg); }
+  40% { transform: translateX(6px) rotate(1.4deg); }
+  60% { transform: translateX(-4px) rotate(-1deg); }
+  80% { transform: translateX(3px) rotate(.6deg); }
+}
+@keyframes bud-bob { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(5deg); } }
+@keyframes spark-float { 0%, 100% { transform: translateY(0) rotate(20deg); opacity: .7; } 50% { transform: translateY(-7px) rotate(50deg); opacity: 1; } }
 .task-vine { position: relative; list-style: none; margin: 6px 16px 18px; padding: 6px 0 8px; }
 .task-vine::before {
   content: "";
@@ -1025,6 +1112,6 @@ button.lb-card.tap { width: 100%; text-align: left; font: inherit; color: inheri
   .bloom-petal { width: 24px; height: 40px; margin: -48px 0 0 -12px; transform-origin: 50% 48px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .drift, .task-vine::before, .task-node, .task-node.is-ready .task-bloom, .task-node.is-ready .bloom-wrap::after, .task-bloom.is-opening .bloom-petal, .reward-float { animation: none; }
+  .drift, .task-vine::before, .task-node, .task-node.is-ready .task-bloom, .task-node.is-ready .bloom-wrap::after, .task-bloom.is-opening .bloom-petal, .reward-float, .lock-alert, .lock-bud, .lock-spark { animation: none; }
   .task-bloom.is-done .bloom-petal, .task-bloom.is-opening .bloom-petal { transform: rotate(var(--spin)) scale(1); }
 }
