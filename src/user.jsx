@@ -748,6 +748,11 @@ export function Deposit() {
   if (error) return <p className="pad">{error}</p>;
   if (!data) return <p className="pad">Loading...</p>;
   const chosen = (data.plans || []).find((plan) => String(plan.id) === String(planId));
+  const payTo = (data.gateways || []).find((gateway) => gateway.name.toLowerCase().replace(/\s+/g, "") === method.toLowerCase().replace(/\s+/g, ""));
+  const copyNumber = () => {
+    if (!payTo?.account_number) return;
+    navigator.clipboard?.writeText(payTo.account_number).then(() => setMessage("Account number copied.")).catch(() => setMessage(payTo.account_number));
+  };
   const chooseShot = (e) => {
     const file = e.target.files && e.target.files[0];
     if (shotUrl) URL.revokeObjectURL(shotUrl);
@@ -811,6 +816,17 @@ export function Deposit() {
         <select value={method} onChange={(e) => setMethod(e.target.value)}><option>JazzCash</option><option>Easypaisa</option></select>
         <label>Sender number</label>
         <input placeholder="03xxxxxxxxx" value={sender} onChange={(e) => setSender(e.target.value)} />
+        <div className="pay-to">
+          <span>Send this payment to</span>
+          {payTo?.account_number ? (
+            <>
+              <b>{payTo.name}</b>
+              {payTo.account_name ? <strong>{payTo.account_name}</strong> : null}
+              <em>{payTo.account_number}</em>
+              <button type="button" onClick={copyNumber}>Copy number</button>
+            </>
+          ) : <p>Admin has not added {method} details yet.</p>}
+        </div>
         <label>Payment screenshot</label>
         <input name="screenshot" type="file" accept="image/*" onChange={chooseShot} />
         {shotUrl && <img className="shot-preview" src={shotUrl} alt="Selected payment screenshot" />}

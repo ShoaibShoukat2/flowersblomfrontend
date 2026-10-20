@@ -597,8 +597,42 @@ export function Upgrades() {
   return <><h1>Plan Upgrade</h1><QueueFilters param="ustatus" /><MoneyList kind="upgrade" path={`/api/admin/upgrades?status=${status}`} actionPath="/api/admin/upgrades" /></>;
 }
 export function Gateways() {
-  const data = useLoad("/api/admin/gateways");
-  return <><h1>Easypaisa & JazzCash</h1><div className="stats">{(data || []).map((g) => <div className="stat" key={g.id}><b>{g.name}</b><div>{g.account_name}</div><div>{g.account_number}</div></div>)}</div></>;
+  const [rows, setRows] = useState([]);
+  const [note, setNote] = useState("");
+  const load = () => api("/api/admin/gateways").then((data) => {
+    const next = ["JazzCash", "Easypaisa"].map((name) => {
+      const found = (data || []).find((row) => row.name.toLowerCase().replace(/\s+/g, "") === name.toLowerCase());
+      return found ? { ...found, name } : { name, account_name: "", account_number: "", active: true };
+    });
+    setRows(next);
+  });
+  useEffect(() => { load(); }, []);
+  const update = (name, field, value) => setRows((current) => current.map((row) => row.name === name ? { ...row, [field]: value } : row));
+  const save = async (row) => {
+    setNote("");
+    try {
+      await api("/api/admin/gateways", { method: "POST", body: row });
+      setNote(`${row.name} saved. Users will see it above the payment screenshot.`);
+      load();
+    } catch (err) {
+      setNote(err.message);
+    }
+  };
+  return (
+    <>
+      <h1>Easypaisa & JazzCash</h1>
+      <p className="sub">These details show on the user payment page, above the screenshot.</p>
+      <div className="stats">{rows.map((row) => (
+        <form className="stat" key={row.name} onSubmit={(e) => { e.preventDefault(); save(row); }}>
+          <b>{row.name}</b>
+          <input placeholder="Account title" value={row.account_name} onChange={(e) => update(row.name, "account_name", e.target.value)} />
+          <input placeholder="Account number" value={row.account_number} onChange={(e) => update(row.name, "account_number", e.target.value)} />
+          <button className="btn" type="submit">Save {row.name}</button>
+        </form>
+      ))}</div>
+      {note && <p>{note}</p>}
+    </>
+  );
 }
 export function Transactions() {
   const [params] = useSearchParams();
