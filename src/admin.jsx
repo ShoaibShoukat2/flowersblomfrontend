@@ -131,7 +131,7 @@ function DetailModal({ detail, onClose, onAction }) {
   if (!detail) return null;
   return (
     <div className="modal-back" onClick={onClose}>
-      <div className="modal-card" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+      <div className={detail.team ? "modal-card wide" : "modal-card"} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <div>
             <h2>{detail.title}</h2>
@@ -143,6 +143,55 @@ function DetailModal({ detail, onClose, onAction }) {
         <div className="modal-fields">
           {detail.fields.map(([label, value]) => <div key={label}><span>{label}</span><b>{value || "—"}</b></div>)}
         </div>
+        {detail.loading && <p className="sub">Loading account, upliner, and team...</p>}
+        {detail.account && (
+          <section className="review-block">
+            <h3>Account</h3>
+            <div className="modal-fields">
+              <div><span>Phone</span><b>{detail.account.phone || "—"}</b></div>
+              <div><span>Plan</span><b>{detail.account.plan || "No plan"}</b></div>
+              <div><span>Level</span><b>Level {detail.account.level}</b></div>
+              <div><span>Balance</span><b>Rs {detail.account.balance}</b></div>
+              <div><span>Account status</span><b>{detail.account.status}</b></div>
+              <div><span>Payment</span><b>{detail.account.paid ? "Paid" : "Unpaid"}</b></div>
+            </div>
+          </section>
+        )}
+        {detail.review && (
+          <section className="review-block">
+            <h3>Upliner</h3>
+            {detail.upliner ? (
+              <Link className="upliner-card" to={`/admin/users/${detail.upliner.id}`}>
+                <b>{detail.upliner.full_name}</b>
+                <span>{detail.upliner.email}</span>
+                <span>{detail.upliner.phone || "No phone"} · {detail.upliner.plan || "No plan"} · Level {detail.upliner.level} · {detail.upliner.status}</span>
+              </Link>
+            ) : <p className="sub">No upliner. This account joined directly.</p>}
+          </section>
+        )}
+        {detail.team && (
+          <section className="review-block">
+            <h3>Complete team</h3>
+            <div className="team-counts">
+              <span>{detail.team.total} direct</span>
+              <span>{detail.team.active} active</span>
+              <span>{detail.team.pending} pending</span>
+              <span>Level 2 · {detail.team.level2}</span>
+              <span>Level 3 · {detail.team.level3}</span>
+            </div>
+            <div className="team-scroll">
+              {detail.team.members.map((member) => (
+                <Link key={member.id} to={`/admin/users/${member.id}`}>
+                  <b>{member.full_name}</b>
+                  <span>{member.email}{member.phone ? ` · ${member.phone}` : ""}</span>
+                  <span>{member.plan || "No plan"} · Level {member.level} · {member.paid ? "Paid" : "Unpaid"} · {member.status}</span>
+                </Link>
+              ))}
+              {detail.team.members.length === 0 && <p>No team members yet.</p>}
+            </div>
+            {detail.team.total > detail.team.shown && <p className="sub">Showing {detail.team.shown} of {detail.team.total} direct members.</p>}
+          </section>
+        )}
         {detail.pending && (
           <div className="row-actions">
             <button className="btn small" type="button" onClick={() => onAction(detail.id, "approve")}>Approve</button>
@@ -404,6 +453,10 @@ export function UserDetail() {
         <div className="stat tone-violet"><div className="sub">Plan</div><PlanBadge name={data.user.plan} color={data.user.plan_color} text={data.user.plan_text} /></div>
       </div>
       <p className="sub">Internal code {data.user.username}</p>
+      <section className="stat upliner-panel">
+        <div className="sub">Upliner</div>
+        {data.upliner ? <Link to={`/admin/users/${data.upliner.id}`}><b>{data.upliner.full_name}</b><div className="sub">{data.upliner.email} · {data.upliner.phone || "No phone"} · {data.upliner.plan || "No plan"} · Level {data.upliner.level}</div></Link> : <b>No upliner. This account joined directly.</b>}
+      </section>
       <h2>Deposit slips</h2>
       <div className="table-wrap desktop-table"><table><thead><tr><th>Plan</th><th>Amount</th><th>Method</th><th>Sender</th><th>Slip</th><th>Status</th></tr></thead><tbody>
         {(data.deposits || []).map((d) => <tr key={d.id}><td>{d.plan || "—"}</td><td>Rs {d.amount}</td><td>{d.method || "—"}</td><td>{d.sender || "—"}</td><td><SlipView src={d.screenshot} onOpen={() => openDeposit(d)} /></td><td>{d.status}</td></tr>)}
@@ -457,7 +510,18 @@ function MoneyList({ path, actionPath, kind = "deposit" }) {
   const actions = (row) => (row.status === "approved" || row.status === "rejected")
     ? <span className="badge" style={{ background: row.status === "approved" ? "#d1fae5" : "#fee2e2", color: row.status === "approved" ? "#065f46" : "#991b1b" }}>{row.status}</span>
     : <div className="row-actions"><button className="btn small" onClick={() => act(row.id, "approve")}>Approve</button><button className="btn ghost small" onClick={() => act(row.id, "reject")}>Reject</button></div>;
-  const who = (row) => <td><Link to={row.user_id ? `/admin/users/${row.user_id}` : "/admin/users"}><b>{row.full_name}</b></Link><div className="sub">{row.email}</div></td>;
+  const who = (row) => <td><Link to={row.user_id ? `/admin/users/${row.user_id}` : "/admin/users"}><b>{row.full_name}</b></Link><div className="sub">{row.email}</div>{row.upliner && <div className="sub">Upliner: {row.upliner.full_name}</div>}</td>;
+  const openRow = (row) => {
+    const base = paymentDetail(row, kind);
+    if (kind !== "withdraw") {
+      setDetail({ ...base, review: kind === "deposit", upliner: row.upliner || null });
+      return;
+    }
+    setDetail({ ...base, review: true, loading: true });
+    api(`/api/admin/withdrawals/${row.id}`).then((extra) => {
+      setDetail((current) => (current && current.id === row.id ? { ...base, review: true, loading: false, account: extra.account, upliner: extra.upliner, team: extra.team } : current));
+    }).catch(() => setDetail({ ...base, review: true, loading: false }));
+  };
   return (
     <>
       <div className="table-wrap desktop-table"><table>
@@ -468,19 +532,20 @@ function MoneyList({ path, actionPath, kind = "deposit" }) {
             : <tr><th>Name</th><th>Plan</th><th>Amount</th><th>Method</th><th>Sender</th><th>Slip</th><th></th></tr>}
         </thead>
         <tbody>{rows.map((row) => kind === "withdraw" ? (
-          <tr key={row.id}>{who(row)}<td>Rs {row.amount}</td><td>{row.method}</td><td>{row.account_name || "—"}</td><td>{row.account || "—"}</td><td>{actions(row)}</td><td><button className="view-btn" type="button" onClick={() => setDetail(paymentDetail(row, kind))}>View</button></td></tr>
+          <tr key={row.id}>{who(row)}<td>Rs {row.amount}</td><td>{row.method}</td><td>{row.account_name || "—"}</td><td>{row.account || "—"}</td><td>{actions(row)}</td><td><button className="view-btn" type="button" onClick={() => openRow(row)}>View</button></td></tr>
         ) : kind === "upgrade" ? (
-          <tr key={row.id}>{who(row)}<td>{row.from_plan}</td><td>{row.to_plan}</td><td>Rs {row.amount}</td><td>{row.sender || "—"}</td><td><SlipView src={row.screenshot} onOpen={() => setDetail(paymentDetail(row, kind))} /></td><td>{actions(row)}</td></tr>
+          <tr key={row.id}>{who(row)}<td>{row.from_plan}</td><td>{row.to_plan}</td><td>Rs {row.amount}</td><td>{row.sender || "—"}</td><td><SlipView src={row.screenshot} onOpen={() => openRow(row)} /></td><td>{actions(row)}</td></tr>
         ) : (
-          <tr key={row.id}>{who(row)}<td>{row.plan || "—"}</td><td>Rs {row.amount}</td><td>{row.method || "—"}</td><td>{row.sender || "—"}</td><td><SlipView src={row.screenshot} onOpen={() => setDetail(paymentDetail(row, kind))} /></td><td>{actions(row)}</td></tr>
+          <tr key={row.id}>{who(row)}<td>{row.plan || "—"}</td><td>Rs {row.amount}</td><td>{row.method || "—"}</td><td>{row.sender || "—"}</td><td><SlipView src={row.screenshot} onOpen={() => openRow(row)} /></td><td>{actions(row)}</td></tr>
         ))}</tbody>
       </table></div>
       <div className="cards">{rows.map((row) => (
         <div className="lb-card" key={row.id}>
           <b>{row.full_name}</b>
           <div className="sub">{row.email}</div>
+          {row.upliner && <div className="sub">Upliner: {row.upliner.full_name}</div>}
           <div className="sub">{kind === "upgrade" ? `${row.from_plan} → ${row.to_plan}` : (row.plan || row.method)} · Rs {row.amount}{row.sender ? ` · ${row.sender}` : ""}{row.account_name ? ` · ${row.account_name}` : ""}{row.account ? ` · ${row.account}` : ""}</div>
-          <button className="view-btn" type="button" onClick={() => setDetail(paymentDetail(row, kind))}>Open details</button>
+          <button className="view-btn" type="button" onClick={() => openRow(row)}>Open details</button>
           {actions(row)}
         </div>
       ))}</div>
