@@ -728,7 +728,6 @@ function fitScreenshot(file) {
 export function Deposit() {
   const { data, error, reload } = useLoad("/api/user/plans");
   const [planId, setPlanId] = useState("");
-  const [method, setMethod] = useState("JazzCash");
   const [sender, setSender] = useState("");
   const [shot, setShot] = useState(null);
   const [shotUrl, setShotUrl] = useState("");
@@ -742,16 +741,14 @@ export function Deposit() {
     const waiting = pending?.has_screenshot ? null : pending || (pendingUpgrade?.has_screenshot ? null : pendingUpgrade);
     if (!waiting) return;
     setPlanId((current) => current || String(waiting.plan_id || ""));
-    if (waiting.method) setMethod(waiting.method);
     setSender((current) => current || waiting.sender || "");
   }, [pending, pendingUpgrade]);
   if (error) return <p className="pad">{error}</p>;
   if (!data) return <p className="pad">Loading...</p>;
   const chosen = (data.plans || []).find((plan) => String(plan.id) === String(planId));
-  const payTo = (data.gateways || []).find((gateway) => gateway.name.toLowerCase().replace(/\s+/g, "") === method.toLowerCase().replace(/\s+/g, ""));
-  const copyNumber = () => {
-    if (!payTo?.account_number) return;
-    navigator.clipboard?.writeText(payTo.account_number).then(() => setMessage("Account number copied.")).catch(() => setMessage(payTo.account_number));
+  const accounts = data.gateways || [];
+  const copyNumber = (account) => {
+    navigator.clipboard?.writeText(account.account_number).then(() => setMessage("Account number copied.")).catch(() => setMessage(account.account_number));
   };
   const chooseShot = (e) => {
     const file = e.target.files && e.target.files[0];
@@ -763,6 +760,10 @@ export function Deposit() {
     e.preventDefault();
     setFormError("");
     setMessage("");
+    if (!accounts.length) {
+      setFormError("Payment account is not added yet.");
+      return;
+    }
     if (!shot) {
       setFormError("Payment screenshot is required.");
       return;
@@ -773,7 +774,7 @@ export function Deposit() {
       const body = new FormData();
       body.append("plan_id", planId);
       body.append("sender", sender);
-      body.append("method", method);
+      body.append("method", accounts.map((account) => account.name).join(" / "));
       body.append("screenshot", picture);
       const res = await api("/api/user/deposits", { method: "POST", body });
       setMessage(res.kind === "upgrade" ? "Upgrade request sent. Admin will approve it." : "Payment sent. Admin will approve your plan.");
@@ -812,21 +813,17 @@ export function Deposit() {
       <form className="pad plan-form" onSubmit={submit}>
         <label>Selected plan</label>
         <input readOnly value={chosen ? `${chosen.name} · Rs ${chosen.price}` : "Tap a plan above"} />
-        <label>Method</label>
-        <select value={method} onChange={(e) => setMethod(e.target.value)}><option>JazzCash</option><option>Easypaisa</option></select>
         <label>Sender number</label>
         <input placeholder="03xxxxxxxxx" value={sender} onChange={(e) => setSender(e.target.value)} />
-        <div className="pay-to">
-          <span>Send this payment to</span>
-          {payTo?.account_number ? (
-            <>
-              <b>{payTo.name}</b>
-              {payTo.account_name ? <strong>{payTo.account_name}</strong> : null}
-              <em>{payTo.account_number}</em>
-              <button type="button" onClick={copyNumber}>Copy number</button>
-            </>
-          ) : <p>Admin has not added {method} details yet.</p>}
-        </div>
+        {accounts.map((account) => (
+          <div className="pay-to" key={account.id || account.name}>
+            <span>{account.name}</span>
+            {account.account_name ? <strong>{account.account_name}</strong> : null}
+            <em>{account.account_number}</em>
+            <button type="button" onClick={() => copyNumber(account)}>Copy number</button>
+          </div>
+        ))}
+        {!accounts.length && <div className="pay-to"><p>Payment account is not added yet.</p></div>}
         <label>Payment screenshot</label>
         <input name="screenshot" type="file" accept="image/*" onChange={chooseShot} />
         {shotUrl && <img className="shot-preview" src={shotUrl} alt="Selected payment screenshot" />}
