@@ -1,6 +1,6 @@
 import { useContext, useEffect, useState, createContext } from "react";
 import { Link, NavLink, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { api, clearSession, LOGO } from "./api";
+import { api, clearSession, LOGO, token } from "./api";
 
 const refreshCountsContext = createContext(() => {});
 
@@ -334,10 +334,39 @@ export function Users({ status = "approved", title = "Approved users", searchabl
   );
 }
 
-function SlipImage({ src }) {
+function useAuthImage(src) {
+  const [url, setUrl] = useState("");
   const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    if (!src) return undefined;
+    let gone = false;
+    let objectUrl = "";
+    const headers = src.startsWith("/api/") ? { Authorization: `Token ${token()}` } : {};
+    fetch(src, { headers })
+      .then((response) => {
+        if (!response.ok) throw new Error("slip");
+        return response.blob();
+      })
+      .then((blob) => {
+        objectUrl = URL.createObjectURL(blob);
+        if (!gone) setUrl(objectUrl);
+      })
+      .catch(() => {
+        if (!gone) setFailed(true);
+      });
+    return () => {
+      gone = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [src]);
+  return { url, failed };
+}
+
+function SlipImage({ src }) {
+  const { url, failed } = useAuthImage(src);
   if (!src || failed) return <div className="slip-empty">{failed ? "Slip could not be opened." : "Screenshot did not reach the server. Ask the user to upload it again."}</div>;
-  return <img className="modal-slip" src={src} alt="Payment slip" onError={() => setFailed(true)} />;
+  if (!url) return <div className="slip-empty">Loading slip...</div>;
+  return <img className="modal-slip" src={url} alt="Payment slip" />;
 }
 
 function paymentDetail(row, kind) {
@@ -351,8 +380,9 @@ function paymentDetail(row, kind) {
 }
 
 function SlipView({ src, onOpen }) {
-  if (!src) return <button type="button" className="view-btn" onClick={onOpen}>View details</button>;
-  return <button type="button" className="slip-thumb" onClick={onOpen}><img src={src} alt="Deposit slip" /></button>;
+  const { url } = useAuthImage(src);
+  if (!src || !url) return <button type="button" className="view-btn" onClick={onOpen}>View details</button>;
+  return <button type="button" className="slip-thumb" onClick={onOpen}><img src={url} alt="Deposit slip" /></button>;
 }
 
 export function UserDetail() {
