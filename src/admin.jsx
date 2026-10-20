@@ -56,6 +56,84 @@ function NavIcon({ name }) {
   );
 }
 
+const quickLinks = [
+  ["/admin", "home", "Home", ""],
+  ["/admin/deposits", "dot", "Requests", "deposits"],
+  ["/admin/withdrawals", "down", "Withdraw", "withdrawals"],
+  ["/admin/upgrades", "up", "Upgrade", "upgrades"],
+  ["/admin/users", "users", "Users", ""],
+  ["/admin/today-users", "check", "Today", ""],
+  ["/admin/today-withdrawals", "check", "Paid", ""],
+  ["/admin/transactions", "list", "History", ""],
+  ["/admin/gateways", "card", "Accounts", ""],
+  ["/admin/analytics", "chart", "Earnings", ""],
+  ["/admin/rejected", "x", "Rejected", ""],
+  ["/admin/leaderboard", "trophy", "Ranks", ""],
+];
+
+function pageJumps(pathname) {
+  if (pathname.startsWith("/admin/withdrawals") || pathname.startsWith("/admin/today-withdrawals")) {
+    return [
+      ["/admin/withdrawals?wstatus=pending", "down", "Pending"],
+      ["/admin/withdrawals?wstatus=approved", "check", "Approved"],
+      ["/admin/today-withdrawals", "check", "Today"],
+      ["/admin/withdrawals?wstatus=rejected", "x", "Rejected"],
+      ["/admin/deposits", "dot", "Deposits"],
+      ["/admin/users", "users", "Users"],
+      ["/admin/transactions", "list", "Transactions"],
+    ];
+  }
+  if (pathname.startsWith("/admin/deposits")) {
+    return [
+      ["/admin/deposits?slip=pending", "dot", "Pending"],
+      ["/admin/deposits?slip=approved", "check", "Approved"],
+      ["/admin/deposits?slip=approved&today=1", "card", "Today"],
+      ["/admin/deposits?slip=rejected", "x", "Rejected"],
+      ["/admin/withdrawals", "down", "Withdrawals"],
+      ["/admin/users", "users", "Users"],
+      ["/admin/upgrades", "up", "Upgrades"],
+    ];
+  }
+  if (pathname.startsWith("/admin/users")) {
+    return [
+      ["/admin/users?status=all", "users", "All users"],
+      ["/admin/users?status=approved", "check", "Approved"],
+      ["/admin/users?status=pending", "dot", "Pending"],
+      ["/admin/rejected", "x", "Rejected"],
+      ["/admin/deposits", "dot", "Deposits"],
+      ["/admin/withdrawals", "down", "Withdrawals"],
+      ["/admin/transactions", "list", "Transactions"],
+    ];
+  }
+  if (pathname === "/admin") {
+    return [
+      ["/admin/deposits", "dot", "New requests"],
+      ["/admin/withdrawals", "down", "Withdrawals"],
+      ["/admin/today-users", "check", "Today users"],
+      ["/admin/today-withdrawals", "check", "Today paid"],
+      ["/admin/transactions?category=ads", "list", "Task earnings"],
+      ["/admin/transactions?category=manual_add", "up", "Manual add"],
+      ["/admin/transactions?category=manual_sub", "down", "Manual cut"],
+      ["/admin/analytics", "chart", "Analytics"],
+    ];
+  }
+  return [
+    ["/admin", "home", "Dashboard"],
+    ["/admin/deposits", "dot", "Requests"],
+    ["/admin/withdrawals", "down", "Withdrawals"],
+    ["/admin/users", "users", "Users"],
+    ["/admin/transactions", "list", "Transactions"],
+    ["/admin/gateways", "card", "Accounts"],
+  ];
+}
+
+function JumpLink({ to, icon, label }) {
+  const loc = useLocation();
+  const here = `${loc.pathname}${loc.search}`;
+  const on = here === to || (to.indexOf("?") < 0 && loc.pathname === to && !loc.search);
+  return <Link className={on ? "jump on" : "jump"} to={to}><NavIcon name={icon} /><span>{label}</span></Link>;
+}
+
 function NavLinks({ onPick, counts }) {
   const badges = { "/admin/deposits": counts.deposits, "/admin/withdrawals": counts.withdrawals, "/admin/upgrades": counts.upgrades };
   return groups.map(([title, items]) => (
@@ -99,8 +177,17 @@ export function AdminShell({ children }) {
         <header className="admin-top">
           <button className="burger" aria-label="Open admin menu" onClick={() => setOpen(true)}><span /><span /><span /></button>
           <form onSubmit={search}>
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search here..." aria-label="Search user" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, email, or phone" aria-label="Search user" />
           </form>
+          <nav className="quick-rail" aria-label="Admin features">
+            {quickLinks.map(([to, icon, label, countKey]) => (
+              <NavLink key={to} to={to} end={to === "/admin"}>
+                <NavIcon name={icon} />
+                <span>{label}</span>
+                {countKey && counts[countKey] > 0 && <i className="rail-count">{counts[countKey]}</i>}
+              </NavLink>
+            ))}
+          </nav>
         </header>
         <button className={open ? "drawer-backdrop on" : "drawer-backdrop"} aria-label="Close menu" onClick={() => setOpen(false)} />
         <aside className={open ? "admin-drawer on" : "admin-drawer"}>
@@ -111,7 +198,12 @@ export function AdminShell({ children }) {
           <div className="side-nav"><NavLinks counts={counts} onPick={() => setOpen(false)} /></div>
           <button className="btn" onClick={logout}>Logout</button>
         </aside>
-        <main className="main">{children}</main>
+        <main className="main">
+          <nav className="page-jumps" aria-label="Actions for this page">
+            {pageJumps(pathname).map(([to, icon, label]) => <JumpLink key={to} to={to} icon={icon} label={label} />)}
+          </nav>
+          {children}
+        </main>
       </div>
     </div>
     </refreshCountsContext.Provider>
@@ -167,6 +259,40 @@ function DetailModal({ detail, onClose, onAction }) {
                 <span>{detail.upliner.phone || "No phone"} · {detail.upliner.plan || "No plan"} · Level {detail.upliner.level} · {detail.upliner.status}</span>
               </Link>
             ) : <p className="sub">No upliner. This account joined directly.</p>}
+          </section>
+        )}
+        {detail.userPack && (
+          <section className="review-block">
+            <h3>This user, on this page</h3>
+            <div className="mini-links">
+              <Link to={`/admin/users/${detail.userPack.id}`} onClick={onClose}><NavIcon name="users" /> Full profile</Link>
+              <Link to={`/admin/deposits?slip=all&q=${encodeURIComponent(detail.userPack.email)}`} onClick={onClose}><NavIcon name="dot" /> Deposits</Link>
+              <Link to={`/admin/withdrawals?wstatus=all&q=${encodeURIComponent(detail.userPack.email)}`} onClick={onClose}><NavIcon name="down" /> Withdrawals</Link>
+              <Link to={`/admin/transactions?q=${encodeURIComponent(detail.userPack.email)}`} onClick={onClose}><NavIcon name="list" /> Transactions</Link>
+              <Link to={`/admin/upgrades?q=${encodeURIComponent(detail.userPack.email)}`} onClick={onClose}><NavIcon name="up" /> Upgrades</Link>
+            </div>
+            <div className="profile-board mini">
+              <span className="profile-card balance"><span>Balance</span><b>Rs {detail.userPack.profile?.balance || "0.00"}</b></span>
+              <span className="profile-card deposits"><span>Deposits</span><b>Rs {detail.userPack.profile?.deposits || "0.00"}</b></span>
+              <span className="profile-card withdrawals"><span>Withdrawals</span><b>Rs {detail.userPack.profile?.withdrawals || "0.00"}</b></span>
+              <span className="profile-card tx"><span>Transactions</span><b>{detail.userPack.profile?.transactions || 0}</b></span>
+            </div>
+            <p className="sub">Flower Rs {detail.userPack.profile?.flower_balance || "0.00"} · {detail.userPack.profile?.status || "—"} · Level {detail.userPack.profile?.level || 0} · Team {detail.userPack.profile?.team || 0}</p>
+            <h3>Withdrawals</h3>
+            <div className="same-list">
+              {(detail.userPack.withdrawals || []).map((item) => <div key={item.id}><b>Rs {item.amount}</b><span>{item.method} · {item.account || "—"} · {item.status}</span></div>)}
+              {(detail.userPack.withdrawals || []).length === 0 && <p>No withdrawal yet.</p>}
+            </div>
+            <h3>Deposits</h3>
+            <div className="same-list">
+              {(detail.userPack.deposits || []).map((item) => <div key={item.id}><b>Rs {item.amount}</b><span>{item.plan || item.method || "Plan"} · {item.sender || "No sender"} · {item.status}</span></div>)}
+              {(detail.userPack.deposits || []).length === 0 && <p>No deposit yet.</p>}
+            </div>
+            <h3>Latest transactions</h3>
+            <div className="same-list">
+              {(detail.userPack.transactions || []).map((item) => <div key={item.id}><b>{item.title}</b><span>Rs {item.amount}</span></div>)}
+              {(detail.userPack.transactions || []).length === 0 && <p>No transaction yet.</p>}
+            </div>
           </section>
         )}
         {detail.team && (
@@ -530,6 +656,8 @@ export function UserDetail() {
       </tbody></table></div>
       <div className="cards">{(data.deposits || []).map((d) => <button className="lb-card tap" type="button" key={d.id} onClick={() => openDeposit(d)}><b>{d.plan || "Plan"} · Rs {d.amount}</b><div className="sub">{d.method} · {d.sender || "No sender"} · {d.status}</div><span className="view-btn">Open slip</span></button>)}</div>
       {(data.deposits || []).length === 0 && <p>No deposit yet.</p>}
+      <h2>Withdrawals</h2>
+      <div className="cards">{(data.withdrawals || []).map((item) => <div className="lb-card" key={item.id}><b>Rs {item.amount}</b><div className="sub">{item.method} · {item.account_name || "No name"} · {item.account || "No number"}</div><div className="sub">{item.status} · {new Date(item.created_at).toLocaleString()}</div></div>)}{(data.withdrawals || []).length === 0 && <p>No withdrawal yet.</p>}</div>
       <h2>Plan upgrades</h2>
       <div className="pay-grid">{(data.upgrades || []).map((d) => <button className="lb-card tap" type="button" key={d.id} onClick={() => openUpgrade(d)}><b>{d.from_plan} → {d.to_plan}</b><div className="sub">Rs {d.amount} · {d.method || "No method"} · {d.sender || "No sender"} · {d.status}</div><span className="view-btn">Open</span></button>)}{(data.upgrades || []).length === 0 && <p>No upgrade request.</p>}</div>
       <h2>Team</h2>
@@ -580,21 +708,36 @@ function MoneyList({ path, actionPath, kind = "deposit" }) {
   const who = (row) => <td><Link to={row.user_id ? `/admin/users/${row.user_id}` : "/admin/users"}><b>{row.full_name}</b></Link><div className="sub">{row.email}</div>{row.upliner && <div className="sub">Upliner: {row.upliner.full_name}</div>}</td>;
   const openRow = (row) => {
     const base = paymentDetail(row, kind);
-    if (kind !== "withdraw") {
-      setDetail({ ...base, review: kind === "deposit", upliner: row.upliner || null });
-      return;
-    }
-    setDetail({ ...base, review: true, loading: true });
-    api(`/api/admin/withdrawals/${row.id}`).then((extra) => {
-      const fields = base.fields.map(([label, value]) => {
-        if (label === "Referred by" && extra.upliner) return [label, extra.upliner.full_name];
-        if (label === "Mobile" && extra.account) return [label, extra.account.phone || value];
-        if (label === "Username" && extra.account) return [label, extra.account.username || value];
-        return [label, value];
-      });
-      fields.splice(1, 0, ["Total team", String(extra.team?.total ?? 0)]);
-      setDetail((current) => (current && current.id === row.id ? { ...base, fields, review: true, loading: false, account: extra.account, upliner: extra.upliner, team: extra.team } : current));
-    }).catch(() => setDetail({ ...base, review: true, loading: false }));
+    setDetail({ ...base, review: kind !== "upgrade", upliner: row.upliner || null, loading: Boolean(row.user_id) || kind === "withdraw" });
+    const extraJob = kind === "withdraw" ? api(`/api/admin/withdrawals/${row.id}`) : Promise.resolve(null);
+    const userJob = row.user_id ? api(`/api/admin/users/${row.user_id}`) : Promise.resolve(null);
+    Promise.all([extraJob, userJob]).then(([extra, userData]) => {
+      let fields = base.fields;
+      let account = null;
+      let upliner = row.upliner || null;
+      let team = null;
+      if (extra) {
+        fields = base.fields.map(([label, value]) => {
+          if (label === "Referred by" && extra.upliner) return [label, extra.upliner.full_name];
+          if (label === "Mobile" && extra.account) return [label, extra.account.phone || value];
+          if (label === "Username" && extra.account) return [label, extra.account.username || value];
+          return [label, value];
+        });
+        fields.splice(1, 0, ["Total team", String(extra.team?.total ?? 0)]);
+        account = extra.account;
+        upliner = extra.upliner;
+        team = extra.team;
+      }
+      const userPack = userData ? {
+        id: userData.user.id,
+        email: userData.user.email,
+        profile: userData.profile || {},
+        deposits: (userData.deposits || []).slice(0, 6),
+        withdrawals: (userData.withdrawals || []).slice(0, 6),
+        transactions: (userData.transactions || []).slice(0, 6),
+      } : null;
+      setDetail((current) => (current && current.id === row.id ? { ...base, fields, review: kind !== "upgrade", loading: false, account, upliner, team, userPack } : current));
+    }).catch(() => setDetail((current) => (current && current.id === row.id ? { ...base, review: kind !== "upgrade", loading: false } : current)));
   };
   return (
     <>
