@@ -401,6 +401,7 @@ export function Work() {
       await reload();
     } catch (err) {
       if (alive.current) setNote(err.message);
+      if (alive.current && /already open|not open today|limit is complete/i.test(err.message || "")) await reload();
     } finally {
       busy.current = false;
       if (alive.current) {
