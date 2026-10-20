@@ -131,7 +131,7 @@ function DetailModal({ detail, onClose, onAction }) {
   if (!detail) return null;
   return (
     <div className="modal-back" onClick={onClose}>
-      <div className={detail.team ? "modal-card wide" : "modal-card"} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+      <div className={detail.team || detail.sheet ? "modal-card wide" : "modal-card"} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <div>
             <h2>{detail.title}</h2>
@@ -224,6 +224,7 @@ export function AdminHome() {
   const data = useLoad("/api/admin/summary");
   if (!data) return <p>Loading...</p>;
   const money = data.money || {};
+  const netManual = Number(String(money.manual_add || "0").replace(/,/g, "")) - Number(String(money.manual_sub || "0").replace(/,/g, ""));
   return (
     <div className="desk">
       <h1>Dashboard</h1>
@@ -232,10 +233,16 @@ export function AdminHome() {
         <span>Total Users</span>
         <b>{Number(data.users || 0).toLocaleString("en-US")}</b>
       </Link>
-      <Link className="desk-ref" to="/admin/referrals">
-        <b>{rs(money.referral)} Rs</b>
-        <span>Referral Commissions</span>
-      </Link>
+      <article className="desk-card">
+        <span className="desk-ico green" aria-hidden="true"><NavIcon name="card" /></span>
+        <div><b>Rs {rs(money.balances)}</b><span>Total Received Balance</span><small>Money currently in user wallets</small></div>
+        <Link to="/admin/users?status=all">View All</Link>
+      </article>
+      <article className="desk-card">
+        <span className="desk-ico mint" aria-hidden="true"><NavIcon name="card" /></span>
+        <div><b>Rs {rs(money.withdrawn)}</b><span>Total Withdrawn</span></div>
+        <Link to="/admin/withdrawals?wstatus=approved">View All</Link>
+      </article>
       <article className="desk-card">
         <span className="desk-ico green" aria-hidden="true"><NavIcon name="card" /></span>
         <div><b>Rs {rs(money.deposited)}</b><span>Total Deposited</span></div>
@@ -244,45 +251,63 @@ export function AdminHome() {
       <article className="desk-card">
         <span className="desk-ico orange" aria-hidden="true"><NavIcon name="check" /></span>
         <div><b>{Number(money.approved_users_today || 0).toLocaleString("en-US")}</b><span>Today Approved Users</span></div>
-        <Link to="/admin/today-users">View Detail</Link>
+        <Link to="/admin/today-users">View All</Link>
+      </article>
+      <article className="desk-card">
+        <span className="desk-ico orange" aria-hidden="true"><NavIcon name="down" /></span>
+        <div><b>{Number(data.withdraw_today || 0).toLocaleString("en-US")}</b><span>Today Withdrawals</span></div>
+        <Link to="/admin/today-withdrawals">View All</Link>
       </article>
       <article className="desk-card">
         <span className="desk-ico green" aria-hidden="true"><NavIcon name="card" /></span>
-        <div><b>Rs {rs(money.received_today)}</b><span>Today Received Balance</span><small>New account payments only</small></div>
-        <Link to="/admin/deposits?slip=approved&today=1">View Detail</Link>
+        <div><b>Rs {rs(money.received_today)}</b><span>Today Deposited Balance</span><small>Approved joining payments today</small></div>
+        <Link to="/admin/deposits?slip=approved&today=1">View All</Link>
       </article>
       <article className="desk-card">
-        <span className="desk-ico amber" aria-hidden="true"><NavIcon name="down" /></span>
-        <div><b>{Number(data.withdraw_today || 0).toLocaleString("en-US")}</b><span>Today Withdraw</span><small>Rs {rs(money.withdrawals_today)} approved today</small></div>
-        <Link to="/admin/today-withdrawals">View Detail</Link>
+        <span className="desk-ico mint" aria-hidden="true"><NavIcon name="down" /></span>
+        <div><b>Rs {rs(money.withdrawals_today)}</b><span>Today Withdrawn</span></div>
+        <Link to="/admin/today-withdrawals">View All</Link>
       </article>
       <section className="desk-break">
         <h2>Earnings Breakdown</h2>
-        <p>Each source is counted on its own. Plan upgrade payments are not included here.</p>
+        <p>Each source is counted on its own. Plan payments are not mixed into these totals.</p>
       </section>
       <article className="desk-card earn">
         <span className="desk-ico purple" aria-hidden="true"><NavIcon name="list" /></span>
         <div>
           <b>Rs {rs(money.task)}</b>
-          <span>Task Earnings – Overall</span>
-          <small className="today-line">Rs {rs(money.task_today)} Today Earnings</small>
+          <span>Total Task Earnings</span>
+          <small className="today-line">Today Rs {rs(money.task_today)}</small>
         </div>
-        <Link className="today-pill" to="/admin/transactions?category=ads">Today Details</Link>
+        <Link className="today-pill" to="/admin/transactions?category=ads">View All</Link>
       </article>
       <article className="desk-card earn">
         <span className="desk-ico green" aria-hidden="true"><NavIcon name="up" /></span>
         <div>
           <b>Rs {rs(money.manual_add)}</b>
-          <span>Manual Balance Add – Overall</span>
-          <small className="today-line">Rs {rs(money.manual_add_today)} Today Manual Balance Add</small>
+          <span>Manual Additions</span>
+          <small className="today-line">Today Rs {rs(money.manual_add_today)}</small>
         </div>
-        <Link className="today-pill" to="/admin/transactions?category=manual_add">Today Details</Link>
+        <Link className="today-pill" to="/admin/transactions?category=manual_add">View All</Link>
+      </article>
+      <article className="desk-card earn">
+        <span className="desk-ico red" aria-hidden="true"><NavIcon name="down" /></span>
+        <div>
+          <b>Rs {rs(money.manual_sub)}</b>
+          <span>Manual Subtractions</span>
+          <small className="today-line">Today Rs {rs(money.manual_sub_today)}</small>
+        </div>
+        <Link className="today-pill" to="/admin/transactions?category=manual_sub">View All</Link>
       </article>
       <article className="desk-card">
-        <span className="desk-ico mint" aria-hidden="true"><NavIcon name="card" /></span>
-        <div><b>Rs {rs(money.withdrawn)}</b><span>Total Withdrawn</span></div>
-        <Link to="/admin/withdrawals?wstatus=approved">View All</Link>
+        <span className="desk-ico blue" aria-hidden="true"><NavIcon name="card" /></span>
+        <div><b>Rs {rs(netManual)}</b><span>Net Manual Balance</span><small>Manual additions minus manual subtractions</small></div>
+        <Link to="/admin/transactions?category=manual_add">View All</Link>
       </article>
+      <Link className="desk-ref" to="/admin/referrals">
+        <b>{rs(money.referral)} Rs</b>
+        <span>Referral Commissions</span>
+      </Link>
     </div>
   );
 }
@@ -415,17 +440,40 @@ function SlipImage({ src }) {
   const { url, failed } = useAuthImage(src);
   if (!src || failed) return <div className="slip-empty">{failed ? "Slip could not be opened." : "Screenshot did not reach the server. Ask the user to upload it again."}</div>;
   if (!url) return <div className="slip-empty">Loading slip...</div>;
-  return <img className="modal-slip" src={url} alt="Payment slip" />;
+  return (
+    <div className="slip-box">
+      <img className="modal-slip" src={url} alt="Payment slip" />
+      <a className="btn small" href={url} download="payment-slip">Download image</a>
+    </div>
+  );
 }
 
 function paymentDetail(row, kind) {
-  const fields = [["Name", row.full_name], ["Email", row.email]];
-  if (kind === "upgrade") fields.push(["From", row.from_plan], ["To", row.to_plan], ["Sender", row.sender || "—"], ["Method", row.method || "—"]);
-  else if (kind === "withdraw") fields.push(["Method", row.method], ["Account name", row.account_name || "—"], ["Account number", row.account]);
-  else fields.push(["Plan", row.plan || "—"], ["Method", row.method || "—"], ["Sender", row.sender || "—"]);
-  fields.push(["Amount", `Rs ${row.amount}`], ["Status", row.status]);
-  const title = kind === "withdraw" ? "Withdrawal" : kind === "upgrade" ? "Plan upgrade" : "Payment slip";
-  return { id: row.id, title, subtitle: row.email, image: row.screenshot, fields, pending: row.status !== "approved" && row.status !== "rejected" };
+  const amount = `Rs ${row.amount}`;
+  const when = row.created_at ? new Date(row.created_at).toLocaleString() : "—";
+  const upliner = row.upliner ? row.upliner.full_name : "Joined directly";
+  const moneyRows = [["Amount", amount], ["Charge", "Rs 0.00"], ["After charge", amount], ["Rate", "1 Rs = 1.00 PKR"], ["Payable", amount], ["Status", row.status]];
+  let title = "Payment slip";
+  let fields = [["Name", row.full_name], ["Email", row.email]];
+  if (kind === "upgrade") {
+    title = "Plan upgrade";
+    fields.push(["From", row.from_plan], ["To", row.to_plan], ["Sender number", row.sender || "—"], ["Method", row.method || "—"], ...moneyRows);
+  } else if (kind === "withdraw") {
+    title = `Withdraw via ${row.method || "account"}`;
+    fields = [
+      ["Date", when], ["Request number", String(row.id)], ["Username", row.username || "—"], ["Name", row.full_name],
+      ["Email", row.email], ["Mobile", row.phone || "—"], ["Referred by", upliner], ["Method", row.method || "—"],
+      ["Account name", row.account_name || "—"], ["Account number", row.account || "—"], ...moneyRows,
+    ];
+  } else {
+    title = `Deposit via ${row.method || "account"}`;
+    fields = [
+      ["Gateway", row.method || "—"], ["Initiated", when], ["Sender number", row.sender || "—"], ["Transaction number", String(row.id)],
+      ["Username", row.username || "—"], ["Name", row.full_name], ["Email", row.email], ["Mobile", row.phone || "—"],
+      ["Upliner", upliner], ["Plan", row.plan || "—"], ...moneyRows,
+    ];
+  }
+  return { id: row.id, title, subtitle: row.email, image: row.screenshot, fields, sheet: kind !== "upgrade", pending: row.status !== "approved" && row.status !== "rejected" };
 }
 
 function SlipView({ src, onOpen }) {
@@ -440,19 +488,38 @@ export function UserDetail() {
   const data = useLoad(`/api/admin/users/${id}`);
   const [detail, setDetail] = useState(null);
   if (!data) return <p>Loading...</p>;
-  const openDeposit = (d) => setDetail(paymentDetail({ ...d, full_name: data.user.full_name, email: data.user.email }, "deposit"));
+  const openDeposit = (d) => setDetail(paymentDetail({ ...d, full_name: data.user.full_name, email: data.user.email, username: data.user.username, phone: data.user.phone, upliner: data.upliner }, "deposit"));
   const openUpgrade = (d) => setDetail(paymentDetail({ ...d, full_name: data.user.full_name, email: data.user.email, plan: d.to_plan }, "upgrade"));
+  const profile = data.profile || {};
+  const parts = String(profile.full_name || data.user.full_name || "").split(" ");
+  const referral = `${window.location.origin}/register?ref=${profile.referral_code || ""}`;
+  const copyCode = () => navigator.clipboard.writeText(referral);
   return (
     <>
       <Link className="back-link" to="/admin/users?status=all">← Users</Link>
-      <h1>{data.user.full_name}</h1>
-      <div className="stats detail-stats">
-        <div className="stat tone-pink"><div className="sub">Email</div><b>{data.user.email}</b></div>
-        <div className="stat tone-blue"><div className="sub">Phone</div><b>{data.user.phone || "No phone"}</b></div>
-        <div className="stat tone-green"><div className="sub">Balance</div><b>Rs {data.user.balance}</b></div>
-        <div className="stat tone-violet"><div className="sub">Plan</div><PlanBadge name={data.user.plan} color={data.user.plan_color} text={data.user.plan_text} /></div>
+      <h1>User profile</h1>
+      <p className="sub">{data.user.full_name} · {data.user.email}</p>
+      <div className="profile-layout">
+        <div className="profile-board">
+          <Link className="profile-card balance" to="/admin/transactions"><span>Balance</span><b>Rs {rs(profile.balance || data.user.balance)}</b><em>View all</em></Link>
+          <Link className="profile-card deposits" to="/admin/deposits?slip=all"><span>Deposits</span><b>Rs {rs(profile.deposits || 0)}</b><em>View all</em></Link>
+          <Link className="profile-card withdrawals" to="/admin/withdrawals?wstatus=all"><span>Withdrawals</span><b>Rs {rs(profile.withdrawals || 0)}</b><em>View all</em></Link>
+          <Link className="profile-card tx" to="/admin/transactions"><span>Transactions</span><b>{Number(profile.transactions || 0).toLocaleString("en-US")}</b><em>View all</em></Link>
+        </div>
+        <section className="info-sheet">
+          <h2>Information</h2>
+          <div><span>First name</span><b>{parts[0] || "—"}</b></div>
+          <div><span>Last name</span><b>{parts.slice(1).join(" ") || "—"}</b></div>
+          <div><span>Email</span><b>{profile.email || data.user.email}</b></div>
+          <div><span>Mobile number</span><b>{profile.phone || data.user.phone || "—"}</b></div>
+          <div><span>Level</span><b>Level {profile.level ?? data.user.level}</b></div>
+          <div><span>Total team</span><b>{profile.team ?? data.team.length}</b></div>
+          <div><span>Plan</span><b>{data.user.plan || "No plan"}</b></div>
+          <div><span>Upliner</span><b>{data.upliner ? data.upliner.full_name : "Joined directly"}</b></div>
+          <div><span>Referral link</span><b className="break">{referral}</b><button type="button" className="btn small" onClick={copyCode}>Copy</button></div>
+          <div><span>Reference code</span><b>{profile.referral_code || "—"}</b></div>
+        </section>
       </div>
-      <p className="sub">Internal code {data.user.username}</p>
       <section className="stat upliner-panel">
         <div className="sub">Upliner</div>
         {data.upliner ? <Link to={`/admin/users/${data.upliner.id}`}><b>{data.upliner.full_name}</b><div className="sub">{data.upliner.email} · {data.upliner.phone || "No phone"} · {data.upliner.plan || "No plan"} · Level {data.upliner.level}</div></Link> : <b>No upliner. This account joined directly.</b>}
@@ -519,7 +586,14 @@ function MoneyList({ path, actionPath, kind = "deposit" }) {
     }
     setDetail({ ...base, review: true, loading: true });
     api(`/api/admin/withdrawals/${row.id}`).then((extra) => {
-      setDetail((current) => (current && current.id === row.id ? { ...base, review: true, loading: false, account: extra.account, upliner: extra.upliner, team: extra.team } : current));
+      const fields = base.fields.map(([label, value]) => {
+        if (label === "Referred by" && extra.upliner) return [label, extra.upliner.full_name];
+        if (label === "Mobile" && extra.account) return [label, extra.account.phone || value];
+        if (label === "Username" && extra.account) return [label, extra.account.username || value];
+        return [label, value];
+      });
+      fields.splice(1, 0, ["Total team", String(extra.team?.total ?? 0)]);
+      setDetail((current) => (current && current.id === row.id ? { ...base, fields, review: true, loading: false, account: extra.account, upliner: extra.upliner, team: extra.team } : current));
     }).catch(() => setDetail({ ...base, review: true, loading: false }));
   };
   return (
@@ -587,7 +661,8 @@ export function TodayUsers() { return <><h1>Today Approved Users</h1><Users stat
 export function Withdrawals() {
   const [params] = useSearchParams();
   const status = params.get("wstatus") || "pending";
-  return <><h1>Withdrawal Request</h1><QueueFilters param="wstatus" /><MoneyList kind="withdraw" path={`/api/admin/withdrawals?status=${status}`} actionPath="/api/admin/withdrawals" /></>;
+  const titles = { pending: "Withdrawal Request", approved: "All Approved Withdraw", rejected: "Rejected Withdrawals", all: "All Withdrawals" };
+  return <><h1>{titles[status] || "Withdrawal Request"}</h1><QueueFilters param="wstatus" /><MoneyList kind="withdraw" path={`/api/admin/withdrawals?status=${status}`} actionPath="/api/admin/withdrawals" /></>;
 }
 export function TodayWithdrawals() { return <><h1>Today approved Withdrawal</h1><MoneyList kind="withdraw" path="/api/admin/withdrawals?status=approved&today=1" actionPath="/api/admin/withdrawals" /></>; }
 export function Rejected() { return <Users status="rejected" title="Rejected User" />; }

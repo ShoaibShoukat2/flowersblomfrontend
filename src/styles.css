@@ -245,6 +245,10 @@ input:focus, select:focus, textarea:focus { outline: 2px solid rgba(233,30,140,.
 .admin h1 { font-family: "Playfair Display", serif; font-size: clamp(28px, 3vw, 40px); margin: 0 0 6px; }
 .admin h2 { margin: 16px 0 8px; }
 .desk { display: grid; gap: 12px; max-width: 760px; }
+@media (min-width: 980px) {
+  .desk { max-width: none; grid-template-columns: 1fr 1fr; }
+  .desk > h1, .desk-break, .desk-ref { grid-column: 1 / -1; }
+}
 .desk h1 { font-family: Poppins, sans-serif; font-size: 28px; font-weight: 700; }
 .desk-users { display: flex; align-items: center; gap: 12px; background: linear-gradient(90deg, #5b4dff, #7a5cff); color: #fff; text-decoration: none; border-radius: 18px; padding: 18px 16px; box-shadow: 0 12px 24px rgba(91, 77, 255, .22); }
 .desk-users span { font-weight: 700; }
@@ -268,6 +272,29 @@ input:focus, select:focus, textarea:focus { outline: 2px solid rgba(233,30,140,.
 .desk-ico.orange { background: #f97316; }
 .desk-ico.amber { background: #f59e0b; }
 .desk-ico.mint { background: #34d399; }
+.desk-ico.red { background: #ef4444; }
+.desk-ico.blue { background: #3b82f6; }
+.profile-layout { display: grid; gap: 14px; }
+@media (min-width: 900px) { .profile-layout { grid-template-columns: 280px minmax(0, 1fr); align-items: start; } }
+.profile-board { display: grid; gap: 10px; }
+.profile-card, .account-card { display: block; border-radius: 16px; padding: 14px 16px; color: #fff; text-decoration: none; }
+.profile-card span, .account-card span, .profile-card em, .account-card em { display: block; font-style: normal; font-size: 12px; font-weight: 700; opacity: .9; }
+.profile-card b, .account-card b { display: block; margin: 6px 0; font-size: 22px; }
+.profile-card.balance, .account-card.balance { background: linear-gradient(135deg, #5b4dff, #7c6cff); }
+.profile-card.deposits, .account-card.deposits { background: linear-gradient(135deg, #7c3aed, #a855f7); }
+.profile-card.withdrawals, .account-card.withdrawals { background: linear-gradient(135deg, #14b8a6, #22c55e); }
+.profile-card.tx, .account-card.tx { background: linear-gradient(135deg, #2563eb, #60a5fa); }
+.info-sheet, .account-info { background: #fff; border: 1px solid #f1eef4; border-radius: 18px; padding: 8px 14px 4px; }
+.info-sheet h2 { margin: 8px 0; }
+.info-sheet div, .account-info div { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #f3f0f5; }
+.info-sheet div:last-child, .account-info div:last-child { border-bottom: 0; }
+.info-sheet span, .account-info span { width: 130px; flex: 0 0 auto; color: #8d8796; font-size: 13px; }
+.info-sheet b, .account-info b { flex: 1; min-width: 0; }
+.break { word-break: break-all; }
+.account-board { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 16px 0; }
+.account-info { margin: 12px 16px; }
+.slip-box { display: grid; gap: 8px; justify-items: start; }
+.slip-box .btn { width: auto; }
 .desk-break h2 { margin: 8px 0 4px; font-family: Poppins, sans-serif; font-size: 22px; }
 .desk-break p { margin: 0 0 4px; color: #8d8796; font-size: 13px; line-height: 1.45; }
 .desk-card .today-pill { background: #ecfdf3; color: #15803d; }

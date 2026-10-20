@@ -274,12 +274,38 @@ export function Dashboard() {
     ["/app/channels", "ads", "#fff7ed", "#c2410c", "Official Channels"],
     ["/app/withdraw", "withdraw", "#f3e8ff", "#7c3aed", "Withdraw"],
   ];
+  const parts = String(user.full_name || "").split(" ");
+  const cards = [
+    ["/app/wallet", "balance", "Balance", `Rs ${moneyText(user.balance)}`],
+    ["/app/plans", "deposits", "Deposits", `Rs ${moneyText(data.deposits_total)}`],
+    ["/app/wallet#history", "withdrawals", "Withdrawals", `Rs ${moneyText(data.withdrawals_total)}`],
+    ["/app/transactions", "tx", "Transactions", Number(data.transaction_count || 0).toLocaleString("en-US")],
+  ];
   return (
     <div className="dash">
       <section className="home-id">
         <h1>{user.full_name}</h1>
         <p>{user.email}</p>
         <button type="button" onClick={copy}>{copied ? "Copied" : "Copy Referral Link"}</button>
+      </section>
+      <section className="account-board">
+        {cards.map(([to, tone, label, value]) => (
+          <Link key={label} className={`account-card ${tone}`} to={to}>
+            <span>{label}</span>
+            <b>{value}</b>
+            <em>View all</em>
+          </Link>
+        ))}
+      </section>
+      <section className="account-info">
+        <div><span>First name</span><b>{parts[0] || "—"}</b></div>
+        <div><span>Last name</span><b>{parts.slice(1).join(" ") || "—"}</b></div>
+        <div><span>Email</span><b>{user.email}</b></div>
+        <div><span>Mobile number</span><b>{user.phone || "—"}</b></div>
+        <div><span>Level</span><b>Level {data.progress?.level || user.level || 0}</b></div>
+        <div><span>Total team</span><b>{data.team_total || 0}</b></div>
+        <div><span>Upliner</span><b>{data.upliner_name || "Joined directly"}</b></div>
+        <div><span>Reference code</span><b>{user.referral_code}</b></div>
       </section>
       <LevelStatus data={data} />
       <div className="notice"><i>📣</i><div><b>Your Notice</b><div className="marquee"><span>{data.notice}</span></div></div></div>
