@@ -25,6 +25,14 @@ export async function api(path, options = {}) {
   const response = await fetch(path, { ...options, headers, body: options.body instanceof FormData || typeof options.body === "string" || !options.body ? options.body : JSON.stringify(options.body) });
   const data = await response.json().catch(() => ({}));
   if (response.status === 413) throw new Error("Payment screenshot is too large. Choose a smaller photo.");
+  if (response.status === 401) {
+    const onAuth = /\/login|\/register/.test(window.location.pathname);
+    if (!onAuth) {
+      clearSession();
+      window.location.replace("/login?expired=1");
+    }
+    throw new Error("Your session ended. Please sign in again.");
+  }
   if (!response.ok) throw new Error(data.detail || "Request failed");
   return data;
 }

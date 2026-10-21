@@ -705,6 +705,7 @@ button.lb-card.tap { width: 100%; text-align: left; font: inherit; color: inheri
 .sec-title i { width: 4px; height: 18px; border-radius: 4px; background: #ef2b8c; display: block; }
 .earn-pair, .quick-row { display: grid; gap: 12px; }
 .earn-pair { grid-template-columns: 1fr 1fr; }
+button.earn-tile { width: 100%; border: 0; text-align: left; color: inherit; cursor: pointer; font: inherit; }
 .earn-tile {
   position: relative;
   overflow: hidden;

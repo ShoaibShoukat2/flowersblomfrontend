@@ -335,13 +335,14 @@ function remain(seconds) {
 
 function LevelStatus({ data }) {
   const progress = data.progress || {};
-  const next = progress.next_level ? `${progress.joinings} / ${progress.next_required} for Level ${progress.next_level}` : "Level 8 complete";
+  const remaining = Math.max(0, Number(progress.next_required || 0) - Number(progress.joinings || 0));
+  const next = progress.next_level ? `${progress.joinings} approved · ${remaining} remaining for Level ${progress.next_level}` : "Level 8 complete";
   return (
     <section className="level-status">
       <article><span>Current Level</span><b>Level {progress.level || 0}</b></article>
       <article><span>Next level joinings</span><b>{next}</b></article>
       <article><span>Current Balance</span><b>Rs {moneyText(data.user.balance)}</b><small>Task earnings</small></article>
-      <article><span>Flower Earnings</span><b>Rs {moneyText(progress.flower_balance)}</b><small>{progress.flower_locked ? "Locked until Level 8" : "Unlocked"}</small></article>
+      <article><span>Flower Earnings</span><b>Rs {moneyText(progress.flower_balance)}</b></article>
       <article className={progress.locked ? "is-locked" : "is-open"}><span>Task Status</span><b>{progress.task_status || "Unlocked"}</b></article>
       <article><span>Joining cycle</span><b>{progress.locked ? "Due now" : remain(progress.remaining_seconds)}</b><small>{progress.cycle_days}-day cycle</small></article>
       <article><span>Per task</span><b>Rs {moneyText(progress.task_rate, 0)}</b><small>{Number(progress.level) === 8 ? "Level 8 rate is Rs 100" : "Level 8 rate is Rs 100"}</small></article>
@@ -507,6 +508,18 @@ function withdrawalLabel(status) {
   return status || "Pending";
 }
 
+function withdrawalRows(data) {
+  if (Array.isArray(data)) return data;
+  return data?.rows || [];
+}
+
+function whenText(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString();
+}
+
 function WithdrawalHistory({ rows }) {
   return (
     <div className="list withdraw-history" id="history">
@@ -514,8 +527,9 @@ function WithdrawalHistory({ rows }) {
         <article className="withdraw-card" key={row.id}>
           <div>
             <b>Rs {moneyText(row.amount)}</b>
-            <div className="sub">{new Date(row.created_at).toLocaleString()}</div>
-            <div className="sub">{[row.method, row.account_name, row.account].filter(Boolean).join(" · ")}</div>
+            <div className="sub">Requested {whenText(row.created_at) || "—"}</div>
+            {row.approved_at && <div className="sub">Approved {whenText(row.approved_at)}</div>}
+            <div className="sub">{[row.method, row.account_mask].filter(Boolean).join(" · ")}</div>
           </div>
           <span className={`status-badge ${row.status}`}>{withdrawalLabel(row.status)}</span>
         </article>
@@ -528,6 +542,7 @@ function WithdrawalHistory({ rows }) {
 export function Wallet() {
   const home = useLoad("/api/user/home");
   const history = useLoad("/api/user/withdrawals");
+  const [flowerNote, setFlowerNote] = useState("");
   const location = useLocation();
   useEffect(() => {
     if (location.hash !== "#history") return;
@@ -554,7 +569,6 @@ export function Wallet() {
         <span className="blob b3" />
         <p>Current balance</p>
         <h1>Rs {moneyText(home.data.user.balance)}</h1>
-        <p className="bal-note">{home.data.progress?.flower_locked ? "Flower Earnings stay locked until Level 8." : "Level 8 is open, so Flower Earnings can be withdrawn with Current Balance."}</p>
         <div className="bal-actions">
           <Link className="pill solid" to="/app/withdraw"><WalletGlyph name="up" /> Withdraw</Link>
           <Link className="pill line" to="/app/plans"><WalletGlyph name="plus" /> Deposit</Link>
@@ -586,19 +600,27 @@ export function Wallet() {
             <small>Level 2 Rs {moneyText(wallet.indirect_level2)} · Level 3 Rs {moneyText(wallet.indirect_level3)}</small>
           </div>
         </article>
-        <article className="earn-tile">
+        <button
+          type="button"
+          className="earn-tile"
+          onClick={() => {
+            const text = wallet.flower_locked ? "Flower Earnings unlock at Level 8 and stay separate from Current Balance." : "Flower Earnings are separate from Current Balance.";
+            setFlowerNote(text);
+            window.setTimeout(() => setFlowerNote(""), 4000);
+          }}
+        >
           <span className="soft-ico bloom"><WalletGlyph name="sprout" /></span>
           <div>
             <b>Rs {moneyText(wallet.flowers)}</b>
             <span>Flower Earning <span aria-hidden="true">🌸</span></span>
-            <small>{wallet.flower_locked ? "Locked until Level 8. Not part of Current Balance." : "Unlocked for withdrawal."}</small>
+            {flowerNote && <small>{flowerNote}</small>}
           </div>
-        </article>
+        </button>
       </div>
       <article className="today-box">
-        <span>Today Approved Withdrawal</span>
-        <strong>Rs {moneyText(wallet.approved_today)}</strong>
-        <p>Approved today only. Pending and rejected amounts stay out of this total.</p>
+        <span>Total Approved Withdrawals</span>
+        <strong>Rs {moneyText(wallet.withdrawn)}</strong>
+        <p>Every approved withdrawal on this account. Pending and rejected amounts are not included.</p>
       </article>
       <h2 className="sec-title"><i /> Quick Actions</h2>
       <div className="quick-row">
@@ -610,7 +632,7 @@ export function Wallet() {
         ))}
       </div>
       <h2 className="sec-title"><i /> Withdrawal History</h2>
-      <WithdrawalHistory rows={history.data} />
+      <WithdrawalHistory rows={withdrawalRows(history.data)} />
     </div>
   );
 }
@@ -672,8 +694,15 @@ export function Rewards() {
   return (
     <>
       <Back />
-      <div className="hero"><div className="sub">Active team {data.active_team}</div><h1>Level {data.level}</h1></div>
-      <div className="list">{data.items.map((item) => <div className="list-card" key={item.id}><div><b>{item.title}</b><div className="sub">{item.required_team} approved members · {item.prize}</div></div><span className={item.reached ? "green" : "sub"}>{item.reached ? "Reached" : "Locked"}</span></div>)}</div>
+      <div className="hero">
+        <div className="sub">Current level {data.level} · {data.active_team} approved joinings</div>
+        <h1>{data.next_level ? `${data.remaining_joinings} joinings left` : "Level 8 complete"}</h1>
+        {data.next_level && <p>Level {data.next_level} needs {data.next_required} approved joinings. {data.active_team} are complete.</p>}
+      </div>
+      <div className="list">{data.items.map((item) => {
+        const left = Math.max(0, Number(item.required_team) - Number(data.active_team));
+        return <div className="list-card" key={item.id}><div><b>{item.title}</b><div className="sub">{item.required_team} approved joinings · {item.prize}</div><div className="sub">{item.reached ? "Complete" : `${left} remaining`}</div></div><span className={item.reached ? "green" : "sub"}>{item.reached ? "Reached" : "Locked"}</span></div>;
+      })}</div>
     </>
   );
 }
@@ -699,8 +728,24 @@ export function Withdraw() {
   const { data, reload } = useLoad("/api/user/withdrawals");
   const [form, setForm] = useState({ amount: "", method: "JazzCash", account_name: "", account: "" });
   const [error, setError] = useState("");
+  const pack = Array.isArray(data) || !data ? { rows: withdrawalRows(data), minimum: "50.00", minimum_message: "Your first withdrawal must be at least Rs 50.", withdrawable: null } : data;
   const submit = async (e) => {
     e.preventDefault();
+    const amount = Number(form.amount);
+    const minimum = Number(pack.minimum || 50);
+    const withdrawable = pack.withdrawable == null ? null : Number(pack.withdrawable);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setError("Enter an amount above zero.");
+      return;
+    }
+    if (amount < minimum) {
+      setError(pack.minimum_message || `The minimum withdrawal is Rs ${pack.minimum}.`);
+      return;
+    }
+    if (withdrawable != null && amount > withdrawable) {
+      setError("That amount is higher than the balance you can withdraw.");
+      return;
+    }
     try { await api("/api/user/withdrawals", { method: "POST", body: form }); setForm({ ...form, amount: "", account_name: "", account: "" }); setError(""); reload(); } catch (err) { setError(err.message); }
   };
   return (
@@ -708,8 +753,9 @@ export function Withdraw() {
       <Back to="/app/wallet" label="Wallet" />
       <h2 className="page-title">Withdraw</h2>
       <form className="pad" onSubmit={submit}>
+        {data && <p className="sub">{pack.minimum_message} You can withdraw Rs {moneyText(pack.withdrawable)}.</p>}
         <label htmlFor="withdraw-amount">Amount</label>
-        <input id="withdraw-amount" placeholder="Amount" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
+        <input id="withdraw-amount" inputMode="decimal" placeholder="Amount" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
         <label htmlFor="withdraw-method">Method</label>
         <select id="withdraw-method" value={form.method} onChange={(e) => setForm({ ...form, method: e.target.value })}><option>JazzCash</option><option>Easypaisa</option></select>
         <label htmlFor="account-name">Account name</label>
@@ -720,7 +766,7 @@ export function Withdraw() {
         {error && <div className="error">{error}</div>}
       </form>
       <h2 className="sec-title" id="withdraw-page-history"><i /> Withdrawal History</h2>
-      <WithdrawalHistory rows={data} />
+      <WithdrawalHistory rows={withdrawalRows(data)} />
     </>
   );
 }
@@ -838,7 +884,6 @@ export function Deposit() {
           <button type="button" key={plan.id} className={String(planId) === String(plan.id) ? "plan-card on" : "plan-card"} onClick={() => setPlanId(plan.id)}>
             <span className="badge" style={{ background: plan.color, color: plan.text_color }}>{plan.name}</span>
             <strong>Rs {plan.price}</strong>
-            <span className="sub">{plan.daily_tasks} tasks every day</span>
             <span className="sub">{label}</span>
           </button>
           );
@@ -905,6 +950,7 @@ export function Login({ role = "user" }) {
   const [identity, setIdentity] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const expired = new URLSearchParams(window.location.search).get("expired");
   const submit = async (e) => {
     e.preventDefault();
     try {
@@ -926,6 +972,7 @@ export function Login({ role = "user" }) {
         <PasswordField id="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter your password" autoComplete="current-password" />
         <button className="btn" style={{ marginTop: 18 }}>Sign in</button>
         {error && <div className="error">{error}</div>}
+        {!error && expired && <div className="error">Your session ended. Please sign in again.</div>}
         {role === "user" && <p className="auth-switch">New here? <Link to="/register">Create an account</Link></p>}
       </form>
     </AuthShell>
