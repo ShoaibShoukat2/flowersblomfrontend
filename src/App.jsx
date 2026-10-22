@@ -1,7 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { savedUser } from "./api";
-import { AdminHome, AdminShell, Analytics, Channels, Contacts, Deposits, Gateways, Leaderboard, Levels, Referrals, Rejected, Rewards, Settings, TodayUsers, TodayWithdrawals, Transactions as AdminTransactions, Upgrades, UserDetail, Users, Withdrawals } from "./admin";
-import { Channels as UserChannels, Contact, Dashboard, Deposit, Login, Register, Rewards as UserRewards, Team, Transactions, UserShell, Wallet, Withdraw, Work } from "./user";
+import { AdminAccount, AdminHome, AdminShell, Analytics, Channels, Contacts, Deposits, Gateways, Leaderboard, Levels, Referrals, Rejected, Settings, TodayUsers, TodayWithdrawals, Transactions as AdminTransactions, Upgrades, UserDetail, Users, Withdrawals } from "./admin";
+import { Channels as UserChannels, Contact, Dashboard, Deposit, Impersonate, Login, Register, Rewards as UserRewards, Team, Transactions, UserShell, Wallet, Withdraw, Work } from "./user";
 
 function Guard({ role, children }) {
   const user = savedUser();
@@ -29,6 +29,7 @@ export default function App() {
       <Route path="/app/plans" element={<Guard role="user"><UserShell><Deposit /></UserShell></Guard>} />
       <Route path="/admin" element={<Guard role="admin"><AdminShell><AdminHome /></AdminShell></Guard>} />
       <Route path="/admin/analytics" element={<Guard role="admin"><AdminShell><Analytics /></AdminShell></Guard>} />
+      <Route path="/admin/transactions" element={<Guard role="admin"><AdminShell><AdminTransactions /></AdminShell></Guard>} />
       <Route path="/admin/users" element={<Guard role="admin"><AdminShell><Users searchable /></AdminShell></Guard>} />
       <Route path="/admin/users/:id" element={<Guard role="admin"><AdminShell><UserDetail /></AdminShell></Guard>} />
       <Route path="/admin/leaderboard" element={<Guard role="admin"><AdminShell><Leaderboard /></AdminShell></Guard>} />
@@ -40,12 +41,12 @@ export default function App() {
       <Route path="/admin/rejected" element={<Guard role="admin"><AdminShell><Rejected /></AdminShell></Guard>} />
       <Route path="/admin/upgrades" element={<Guard role="admin"><AdminShell><Upgrades /></AdminShell></Guard>} />
       <Route path="/admin/gateways" element={<Guard role="admin"><AdminShell><Gateways /></AdminShell></Guard>} />
-      <Route path="/admin/transactions" element={<Guard role="admin"><AdminShell><AdminTransactions /></AdminShell></Guard>} />
       <Route path="/admin/settings" element={<Guard role="admin"><AdminShell><Settings /></AdminShell></Guard>} />
       <Route path="/admin/channels" element={<Guard role="admin"><AdminShell><Channels /></AdminShell></Guard>} />
       <Route path="/admin/contacts" element={<Guard role="admin"><AdminShell><Contacts /></AdminShell></Guard>} />
       <Route path="/admin/levels" element={<Guard role="admin"><AdminShell><Levels /></AdminShell></Guard>} />
-      <Route path="/admin/rewards" element={<Guard role="admin"><AdminShell><Rewards /></AdminShell></Guard>} />
+      <Route path="/admin/account" element={<Guard role="admin"><AdminShell><AdminAccount /></AdminShell></Guard>} />
+      <Route path="/impersonate" element={<Impersonate />} />
     </Routes>
   );
 }

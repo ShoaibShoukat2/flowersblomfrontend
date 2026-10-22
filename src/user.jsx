@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { api, clearSession, LOGO, savedUser } from "./api";
 
 function useLoad(path) {
@@ -52,7 +52,7 @@ function pageInfo(pathname) {
     ["/app/plans", "Plan Upgrade", "Plan Upgrade"],
     ["/app/deposit", "Deposit", "Deposit"],
     ["/app/work", "Task Room", "Work"],
-    ["/app/wallet", "My Wallet", "My Wallet"],
+    ["/app/wallet", "Wallet", "Wallet"],
     ["/app/transactions", "Transaction History", "Transactions"],
     ["/app/team", "My Team", "My Team"],
     ["/app/rewards", "Levels", "Levels"],
@@ -99,13 +99,21 @@ export function UserShell({ children }) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
   const popOpen = bell || profile;
+  const brandBar = location.pathname === "/app" || ["/app/wallet", "/app/team", "/app/rewards", "/app/deposit", "/app/plans", "/app/work"].includes(location.pathname);
   return (
     <div className="phone">
       {popOpen && <button className="pop-back" aria-label="Close" onClick={() => { setBell(false); setProfile(false); }} />}
-      <header className="user-bar">
+      <header className={brandBar ? "user-bar brand-bar" : "user-bar"}>
         <button className="burger" aria-label="Open menu" onClick={() => setOpen(true)}>
           <span /><span /><span />
         </button>
+        {brandBar ? (
+          <div className="brand-lockup">
+            <FlowerMark />
+            <b>Flowers</b>
+            <FlowerMark />
+          </div>
+        ) : (
         <div className="bar-title">
           <b>{meta.title}</b>
           <div className="crumb">
@@ -114,21 +122,30 @@ export function UserShell({ children }) {
             <em>{meta.crumb}</em>
           </div>
         </div>
+        )}
         <div className="bar-actions">
+          {brandBar ? (
+            <button className="brand-flower" aria-label="Account menu" aria-expanded={profile} onClick={() => { setProfile((v) => !v); setBell(false); }}>
+              <FlowerMark />
+            </button>
+          ) : (
           <button className="icon-btn" aria-label="Notices" aria-expanded={bell} onClick={() => { setBell((v) => !v); setProfile(false); }}>
             <WalletGlyph name="bell" />
             {notice ? <i className="dot" /> : null}
           </button>
+          )}
           {bell && (
             <div className="pop notice-pop">
               <b>Notices</b>
               <p>{notice || "You're all caught up."}</p>
             </div>
           )}
+          {!brandBar && (
           <button className="profile-btn" aria-label="Account menu" aria-expanded={profile} onClick={() => { setProfile((v) => !v); setBell(false); }}>
             <WalletGlyph name="user" />
             <WalletGlyph name="caret" />
           </button>
+          )}
           {profile && (
             <div className="pop profile-pop">
               <b>{session?.full_name || "Your account"}</b>
@@ -159,19 +176,19 @@ export function UserShell({ children }) {
       <nav className="dock" aria-label="Main">
         <NavLink to="/app" end>
           <span className="dock-ico"><DashIcon name="home" /></span>
-          Dashboard
+          Home
         </NavLink>
-        <NavLink to="/app/work">
-          <span className="dock-ico"><DashIcon name="task" /></span>
-          Work
-        </NavLink>
-        <NavLink to="/app/wallet" className={({ isActive }) => (isActive ? "dock-main active" : "dock-main")}>
+        <NavLink to="/app/wallet">
           <span className="dock-ico"><DashIcon name="wallet" /></span>
           Wallet
         </NavLink>
+        <NavLink to="/app/work" className={({ isActive }) => isActive ? "dock-main active" : "dock-main"}>
+          <span className="dock-ico"><SakuraIcon /></span>
+          Task Room
+        </NavLink>
         <NavLink to="/app/rewards">
           <span className="dock-ico"><DashIcon name="level" /></span>
-          Levels
+          Rewards
         </NavLink>
         <button type="button" className={open ? "on" : ""} onClick={() => setOpen(true)}>
           <span className="dock-ico"><DashIcon name="menu" /></span>
@@ -208,51 +225,79 @@ function DashIcon({ name }) {
   );
 }
 
-function FlowerMark() {
-  const petals = [[44, 18], [70, 36], [60, 64], [28, 64], [18, 36]];
+function SakuraIcon({ tone = "#ff4f9a", className = "sakura-icon" }) {
   return (
-    <svg className="flower-mark" viewBox="0 0 88 88" aria-hidden="true">
-      {petals.map(([cx, cy], index) => (
-        <circle key={cx + cy} className="petal" cx={cx} cy={cy} r="14" fill="#ffd6ea" style={{ animationDelay: `${index * 0.12}s` }} />
+    <svg className={className} viewBox="0 0 64 64" aria-hidden="true">
+      {[0, 72, 144, 216, 288].map((deg) => (
+        <ellipse key={deg} cx="32" cy="15" rx="9.5" ry="16" fill={tone} transform={`rotate(${deg} 32 32)`} />
       ))}
-      <circle className="flower-core" cx="44" cy="40" r="13" fill="#ffb703" />
-      <circle className="flower-heart" cx="44" cy="40" r="6" fill="#f59e0b" />
+      <circle cx="32" cy="32" r="8" fill="#ffe08a" />
+      <circle cx="32" cy="32" r="3.4" fill="#f5a623" />
     </svg>
   );
 }
 
-function TeamBoard({ home, copied, onCopy }) {
-  const user = home.user || {};
+function sakuraAt(x, y, scale, tone) {
   return (
-    <div className="team-board">
-      <section className="team-hero">
-        <span className="blob b1" />
-        <span className="blob b2" />
-        <span className="blob b3" />
-        <FlowerMark />
-        <h1>My Team</h1>
-        <p>Grow your team and earn more rewards</p>
-        <div className="team-pills">
-          <span><WalletGlyph name="people" /> {home.team_total || 0} Total</span>
-          <span><WalletGlyph name="check" /> {home.active_team || 0} Active</span>
-          <span><WalletGlyph name="clock" /> {Math.max(0, (home.team_total || 0) - (home.active_team || 0))} Pending</span>
-        </div>
-        <div className="level-pill"><WalletGlyph name="layers" /> Level {user.level || 0}</div>
-      </section>
-      <div className="stat-row team-stats">
-        <article className="wstat"><b>{home.team_total || 0}</b><span>Referred</span></article>
-        <article className="wstat"><b>{home.active_team || 0}</b><span>Active</span></article>
-        <article className="wstat"><b>{home.daily_limit || 0}</b><span>Task limit</span></article>
-      </div>
-      <section className="ref-card">
-        <div className="ref-kicker"><WalletGlyph name="link" /> Your referral link</div>
-        <div className="ref-row">
-          <input readOnly value={home.referral_link || ""} aria-label="Referral link" />
-          <button type="button" onClick={onCopy}>{copied ? "Copied" : "Copy"}</button>
-        </div>
-      </section>
+    <g transform={`translate(${x} ${y}) scale(${scale})`}>
+      {[0, 72, 144, 216, 288].map((deg) => (
+        <ellipse key={`${x}-${deg}`} cx="0" cy="-16" rx="8" ry="14" fill={tone} transform={`rotate(${deg})`} />
+      ))}
+      <circle r="6.5" fill="#ffe7a3" />
+      <circle r="2.8" fill="#f5a623" />
+    </g>
+  );
+}
+
+function BlossomScene() {
+  return (
+    <div className="blossom-scene" aria-hidden="true">
+      <svg className="sprig sprig-a" viewBox="0 0 200 160">
+        <path d="M18 150 C50 110 80 90 130 48" fill="none" stroke="#f7c5dc" strokeWidth="3" strokeLinecap="round" />
+        {sakuraAt(128, 42, 0.85, "#ff8fbf")}
+        {sakuraAt(86, 78, 0.55, "#ffd0e6")}
+        {sakuraAt(48, 112, 0.42, "#fff")}
+        <circle cx="156" cy="28" r="5" fill="#ffd6ea" />
+      </svg>
+      <svg className="sprig sprig-b" viewBox="0 0 200 160">
+        <path d="M180 20 C140 50 120 70 70 120" fill="none" stroke="#f7c5dc" strokeWidth="3" strokeLinecap="round" />
+        {sakuraAt(64, 118, 0.8, "#ff7eb3")}
+        {sakuraAt(112, 78, 0.5, "#fff")}
+        {sakuraAt(150, 42, 0.4, "#ffd0e6")}
+      </svg>
+      <svg className="sprig sprig-c" viewBox="0 0 220 150">
+        <path d="M10 40 C50 70 90 80 150 120" fill="none" stroke="#f7c5dc" strokeWidth="3" strokeLinecap="round" />
+        {sakuraAt(36, 52, 0.7, "#ffb3d1")}
+        {sakuraAt(96, 84, 0.9, "#ff6fa8")}
+        {sakuraAt(154, 118, 0.48, "#fff")}
+      </svg>
+      <svg className="sprig sprig-d" viewBox="0 0 220 150">
+        <path d="M200 130 C150 100 120 80 60 30" fill="none" stroke="#f7c5dc" strokeWidth="3" strokeLinecap="round" />
+        {sakuraAt(58, 36, 0.75, "#ff8fbf")}
+        {sakuraAt(118, 78, 0.5, "#ffe4f2")}
+        {sakuraAt(168, 112, 0.62, "#ff7eb3")}
+      </svg>
     </div>
   );
+}
+
+function FlowerMark() {
+  return <SakuraIcon className="flower-mark sakura-icon" />;
+}
+
+const LEVEL_LOOK = {
+  1: ["🌷", "Tulip Level"],
+  2: ["🌸", "Cherry Blossom Level"],
+  3: ["🌸", "Bloom Level"],
+  4: ["🪷", "Lotus Level"],
+  5: ["🌼", "Daisy Level"],
+  6: ["🌹", "Rose Level"],
+  7: ["🌺", "Orchid Level"],
+  8: ["🌻", "Sunflower Level"],
+};
+
+function memberFlower(level) {
+  return (LEVEL_LOOK[level] || ["🌸", "Level"])[0];
 }
 
 export function Dashboard() {
@@ -267,58 +312,50 @@ export function Dashboard() {
   };
   const user = data.user;
   const menus = [
-    ["/app/work", "task", "#ecfdf5", "#047857", "Work"],
-    ["/app/wallet", "wallet", "#fff0f6", "#e91e8c", "Wallet"],
-    ["/app/rewards", "level", "#fef3c7", "#b45309", "Levels & Rewards"],
-    ["/app/team", "team", "#fce7f3", "#be185d", "My Team"],
-    ["/app/channels", "ads", "#fff7ed", "#c2410c", "Official Channels"],
-    ["/app/withdraw", "withdraw", "#f3e8ff", "#7c3aed", "Withdraw"],
-  ];
-  const parts = String(user.full_name || "").split(" ");
-  const cards = [
-    ["/app/wallet", "balance", "Balance", `Rs ${moneyText(user.balance)}`],
-    ["/app/plans", "deposits", "Deposits", `Rs ${moneyText(data.deposits_total)}`],
-    ["/app/wallet#history", "withdrawals", "Withdrawals", `Rs ${moneyText(data.withdrawals_total)}`],
-    ["/app/transactions", "tx", "Transactions", Number(data.transaction_count || 0).toLocaleString("en-US")],
+    ["/app/work", "flower", "Garden"],
+    ["/app/wallet", "wallet", "Wallet"],
+    ["/app/team", "team", "Team"],
+    ["/app/rewards", "level", "Level & Rewards"],
+    ["/app/channels", "ads", "Official Channels"],
+    ["/app/withdraw", "withdraw", "Withdraw"],
   ];
   return (
-    <div className="dash">
-      <section className="home-id">
-        <h1>{user.full_name}</h1>
+    <div className="bloom-wallet home-dash">
+      <div className="dash-title">
+        <h1><SakuraIcon className="title-flower" /> Main Dashboard</h1>
+        <div className="crumb"><Link to="/app" aria-label="Home"><WalletGlyph name="home" /></Link><span>Home</span><span>/</span><em>Main Dashboard</em></div>
+      </div>
+      <section className="profile-bloom">
+        <SakuraIcon className="profile-sprig left" />
+        <SakuraIcon className="profile-sprig right" />
+        <span className="welcome-bloom" aria-hidden="true"><SakuraIcon /></span>
+        <h2>{user.full_name}</h2>
         <p>{user.email}</p>
-        <button type="button" onClick={copy}>{copied ? "Copied" : "Copy Referral Link"}</button>
+        <Link className="plan-pill" to="/app/plans">{user.plan || "Choose a plan"}</Link>
       </section>
-      <section className="account-board">
-        {cards.map(([to, tone, label, value]) => (
-          <Link key={label} className={`account-card ${tone}`} to={to}>
-            <span>{label}</span>
-            <b>{value}</b>
-            <em>View all</em>
-          </Link>
-        ))}
-      </section>
-      <section className="account-info">
-        <div><span>First name</span><b>{parts[0] || "—"}</b></div>
-        <div><span>Last name</span><b>{parts.slice(1).join(" ") || "—"}</b></div>
-        <div><span>Email</span><b>{user.email}</b></div>
-        <div><span>Mobile number</span><b>{user.phone || "—"}</b></div>
-        <div><span>Level</span><b>Level {data.progress?.level || user.level || 0}</b></div>
-        <div><span>Total team</span><b>{data.team_total || 0}</b></div>
-        <div><span>Upliner</span><b>{data.upliner_name || "Joined directly"}</b></div>
-        <div><span>Reference code</span><b>{user.referral_code}</b></div>
-      </section>
-      <LevelStatus data={data} />
-      <div className="notice"><i>📣</i><div><b>Your Notice</b><div className="marquee"><span>{data.notice}</span></div></div></div>
-      <div className="sec">Quick Menu</div>
-      <div className="grid">
-        {menus.map(([href, icon, bg, color, label], index) => (
-          <Link key={href} to={href} className="menu" style={{ animationDelay: `${index * 60}ms` }}>
-            <span className="icon big-menu" style={{ background: bg, color }}><DashIcon name={icon} /></span>
+      <h3 className="menu-kicker">Quick Menu</h3>
+      <div className="home-menu">
+        {menus.map(([href, icon, label]) => (
+          <Link key={href} to={href}>
+            <i>{icon === "flower" ? <SakuraIcon /> : <DashIcon name={icon} />}</i>
             <b>{label}</b>
+            <em>›</em>
           </Link>
         ))}
       </div>
-      <Link className="btn contact" to="/app/contact">Contact Task</Link>
+      <Link className="contact-strip" to="/app/contact">
+        <i aria-hidden="true"><DashIcon name="direct" /></i>
+        <div><b>Contact Us</b><span>We're here to help you!</span></div>
+        <em>›</em>
+      </Link>
+      <section className="ref-card">
+        <i aria-hidden="true"><WalletGlyph name="link" /></i>
+        <div>
+          <b>Your Referral Link</b>
+          <input readOnly value={data.referral_link} />
+        </div>
+        <button type="button" onClick={copy}>{copied ? "Copied" : "Copy"}</button>
+      </section>
     </div>
   );
 }
@@ -358,6 +395,65 @@ function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function flowerKind(title) {
+  const key = String(title || "").toLowerCase();
+  if (key.includes("sun")) return "sun";
+  if (key.includes("tulip") || key.includes("rose")) return "tulip";
+  if (key.includes("daisy") || key.includes("lotus") || key.includes("lily")) return "white";
+  return "hibiscus";
+}
+
+function MiniFlower({ kind = "hibiscus" }) {
+  if (kind === "sun") {
+    return (
+      <svg className="mini-flower" viewBox="0 0 80 80" aria-hidden="true">
+        {[0, 45, 90, 135, 180, 225, 270, 315].map((deg) => (
+          <ellipse key={deg} cx="40" cy="18" rx="7" ry="14" fill="#f5b301" transform={`rotate(${deg} 40 40)`} />
+        ))}
+        <circle cx="40" cy="40" r="11" fill="#9a3412" />
+        <circle cx="40" cy="40" r="5" fill="#fde68a" />
+      </svg>
+    );
+  }
+  if (kind === "tulip") {
+    return (
+      <svg className="mini-flower" viewBox="0 0 80 80" aria-hidden="true">
+        <path d="M40 74V42" stroke="#4ade80" strokeWidth="4" strokeLinecap="round" />
+        <path d="M40 58c-10 2-16 8-16 8" stroke="#4ade80" strokeWidth="3" fill="none" strokeLinecap="round" />
+        <path d="M26 34c0-16 14-22 14-22s14 6 14 22c0 10-6 16-14 18-8-2-14-8-14-18z" fill="#ff4f9a" />
+        <ellipse cx="40" cy="36" rx="7" ry="12" fill="#ff8ec3" />
+      </svg>
+    );
+  }
+  if (kind === "white") return <SakuraIcon tone="#fff5fb" className="mini-flower" />;
+  return <SakuraIcon tone="#ff4f9a" className="mini-flower" />;
+}
+
+function GiftReveal({ phase, kind }) {
+  return (
+    <div className={`gift-stage is-${phase}`} role="dialog" aria-label="Flower opening">
+      <div className="gift-glow" />
+      <span className="gift-petal p1" /><span className="gift-petal p2" /><span className="gift-petal p3" />
+      <span className="gift-petal p4" /><span className="gift-petal p5" /><span className="gift-petal p6" />
+      <div className="gift">
+        <div className="gift-flower">
+          <MiniFlower kind={kind} />
+          {phase === "bloom" && (
+            <span className="gift-bouquet" aria-hidden="true">
+              <MiniFlower kind="hibiscus" />
+              <MiniFlower kind="sun" />
+              <MiniFlower kind="tulip" />
+              <MiniFlower kind="white" />
+            </span>
+          )}
+        </div>
+        <div className="gift-lid"><i /></div>
+        <div className="gift-box"><i /></div>
+      </div>
+    </div>
+  );
+}
+
 function TaskBloom({ mode, tone }) {
   return (
     <span className={`task-bloom is-${mode}`} style={{ "--petal": tone }} aria-hidden="true">
@@ -390,6 +486,7 @@ export function Work() {
   const { data, error, reload } = useLoad("/api/user/tasks");
   const [note, setNote] = useState("");
   const [openingSlot, setOpeningSlot] = useState(null);
+  const [reveal, setReveal] = useState(null);
   const [rewardPop, setRewardPop] = useState(null);
   const [shake, setShake] = useState(false);
   const busy = useRef(false);
@@ -417,14 +514,19 @@ export function Work() {
     busy.current = true;
     setNote("");
     setOpeningSlot(task.slot);
+    setReveal("shut");
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     try {
-      if (!reduce) await wait(920);
+      if (!reduce) await wait(260);
+      if (!alive.current) return;
+      setReveal("open");
+      if (!reduce) await wait(1100);
       if (!alive.current) return;
       const result = await api(`/api/user/tasks/${task.id}/complete`, { method: "POST" });
       if (!alive.current) return;
       setRewardPop({ slot: task.slot, amount: result.reward });
-      if (!reduce) await wait(680);
+      setReveal("bloom");
+      if (!reduce) await wait(1200);
       await reload();
     } catch (err) {
       if (alive.current) setNote(err.message);
@@ -433,6 +535,7 @@ export function Work() {
       busy.current = false;
       if (alive.current) {
         setOpeningSlot(null);
+        setReveal(null);
         setTimeout(() => { if (alive.current) setRewardPop(null); }, 500);
       }
     }
@@ -447,10 +550,22 @@ export function Work() {
   const readyLeft = Math.max(0, limit - doneCount);
   const ring = 2 * Math.PI * 54;
   const ringOffset = ring - (meter / 100) * ring;
+  const openingTask = tasks.find((task) => task.slot === openingSlot);
+  const actionLabel = (mode) => {
+    if (mode === "done") return "Opened";
+    if (mode === "opening") return "Opening";
+    if (mode === "locked") return "Locked";
+    if (mode === "ready") return "Bloom now";
+    return "Wait";
+  };
   return (
     <div className="task-room">
-      <Back />
+      <p className="room-crumb"><Link to="/app">Home</Link><span>/</span>Task Room</p>
       <section className="garden">
+        <SakuraIcon className="garden-sprig s1" />
+        <SakuraIcon className="garden-sprig s2" />
+        <SakuraIcon className="garden-sprig s3" />
+        <SakuraIcon className="garden-sprig s4" />
         <div className="live-pill"><i />Live Garden</div>
         <h2><span>Bloom</span> <span>Tasks</span></h2>
         <p>Pick a flower, watch it bloom, earn rewards</p>
@@ -474,7 +589,7 @@ export function Work() {
         {progress.locked && progress.message ? <LockAlert message={progress.message} shake={shake} /> : progress.message ? <p className="task-note">{progress.message}</p> : null}
         {note && note !== progress.message && <p className="task-note locked">{note}</p>}
         <div className="garden-grid">
-          {tasks.map((task, index) => {
+          {tasks.map((task) => {
             const mode = modeFor(task);
             return (
               <button
@@ -486,16 +601,17 @@ export function Work() {
               >
                 <span>{task.title}</span>
                 <span className="bloom-wrap">
-                  <TaskBloom mode={mode} tone={FLOWER_TONES[index % FLOWER_TONES.length]} />
-                  {rewardPop && rewardPop.slot === task.slot && <b className="reward-float">+ Rs {rewardPop.amount}</b>}
+                  <MiniFlower kind={flowerKind(task.title)} />
+                  {rewardPop && rewardPop.slot === task.slot && <b className="reward-float">+ Rs {moneyText(rewardPop.amount, 0)}</b>}
                 </span>
-                <em>{mode === "done" ? "Opened" : mode === "opening" ? "Opening..." : `Rs ${task.reward}`}</em>
+                <em>{actionLabel(mode)}</em>
               </button>
             );
           })}
         </div>
         {tasks.length === 0 && <p className="task-note">No task is available right now.</p>}
       </section>
+      {reveal && <GiftReveal phase={reveal} kind={flowerKind(openingTask?.title)} />}
     </div>
   );
 }
@@ -518,6 +634,37 @@ function whenText(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return date.toLocaleString();
+}
+
+function slipWhen(value) {
+  const date = new Date(value || "");
+  if (Number.isNaN(date.getTime())) return "";
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  let hour = date.getHours();
+  const minute = String(date.getMinutes()).padStart(2, "0");
+  const suffix = hour >= 12 ? "PM" : "AM";
+  hour = hour % 12 || 12;
+  return `${date.getFullYear()}-${month}-${day} ${String(hour).padStart(2, "0")}:${minute} ${suffix}`;
+}
+
+function WalletArt() {
+  return (
+    <svg className="wallet-art" viewBox="0 0 170 150" aria-hidden="true">
+      <ellipse cx="88" cy="136" rx="54" ry="8" fill="rgba(255,255,255,.25)" />
+      <circle cx="30" cy="40" r="14" fill="#ffe08a" stroke="#f5b942" strokeWidth="3" />
+      <text x="30" y="45" textAnchor="middle" fontSize="13" fill="#c47b00" fontWeight="700">$</text>
+      <circle cx="146" cy="32" r="11" fill="#ffd56a" />
+      <text x="146" y="36" textAnchor="middle" fontSize="10" fill="#c47b00" fontWeight="700">$</text>
+      <circle cx="156" cy="68" r="8" fill="#ffe7a8" />
+      <path d="M48 62h84c8 0 14 6 12 14H38c0-8 2-14 10-14z" fill="#ff8ec4" />
+      <rect x="32" y="74" width="112" height="54" rx="16" fill="#ff2f86" />
+      <rect x="44" y="86" width="88" height="28" rx="10" fill="#fff" />
+      <circle cx="114" cy="100" r="6" fill="#ff4f9a" />
+      <circle cx="62" cy="24" r="5" fill="#ffd0e6" />
+      <circle cx="98" cy="16" r="3.5" fill="#ffe4f2" />
+    </svg>
+  );
 }
 
 function WithdrawalHistory({ rows }) {
@@ -543,6 +690,7 @@ export function Wallet() {
   const home = useLoad("/api/user/home");
   const history = useLoad("/api/user/withdrawals");
   const [flowerNote, setFlowerNote] = useState("");
+  const [showAll, setShowAll] = useState(false);
   const location = useLocation();
   useEffect(() => {
     if (location.hash !== "#history") return;
@@ -551,88 +699,104 @@ export function Wallet() {
   if (home.error) return <p className="pad">{home.error}</p>;
   if (!home.data) return <p className="pad wallet-loading">Loading wallet...</p>;
   const wallet = home.data.wallet || {};
-  const stats = [
-    ["clock", "wait", "Pending Withdrawal", moneyCompact(wallet.pending)],
-    ["x", "no", "Rejected Withdrawal", moneyCompact(wallet.rejected)],
-  ];
-  const actions = [
-    ["/app/plans", "plus", "go", "Deposit"],
-    ["/app/withdraw", "up", "out", "Withdraw"],
-    ["/app/transactions", "list", "hist", "History"],
-    ["/app/wallet#history", "clock", "whist", "W. History"],
-  ];
+  const rows = withdrawalRows(history.data);
+  const pendingCount = rows.filter((row) => row.status === "pending").length;
+  const rejectedCount = rows.filter((row) => row.status === "rejected").length;
+  const recent = showAll ? rows : rows.slice(0, 4);
+  const showFlower = () => {
+    const text = wallet.flower_locked ? "Flower Earnings unlock at Level 8 and stay separate from Current Balance." : "Flower Earnings are separate from Current Balance.";
+    setFlowerNote(text);
+    window.setTimeout(() => setFlowerNote(""), 4000);
+  };
   return (
-    <div className="wallet-page">
-      <section className="bal-hero">
-        <span className="blob b1" />
-        <span className="blob b2" />
-        <span className="blob b3" />
-        <p>Current balance</p>
-        <h1>Rs {moneyText(home.data.user.balance)}</h1>
-        <div className="bal-actions">
-          <Link className="pill solid" to="/app/withdraw"><WalletGlyph name="up" /> Withdraw</Link>
-          <Link className="pill line" to="/app/plans"><WalletGlyph name="plus" /> Deposit</Link>
+    <div className="wallet-page bloom-wallet">
+      <div className="wallet-head">
+        <h1>Wallet</h1>
+        <div className="crumb">
+          <Link to="/app" aria-label="Home"><WalletGlyph name="home" /></Link>
+          <span>Home</span>
+          <span>/</span>
+          <em>Wallet</em>
+        </div>
+      </div>
+      <section className="bloom-balance">
+        <div>
+          <span className="bloom-ico"><DashIcon name="wallet" /></span>
+          <p>Wallet Balance</p>
+          <h1>Rs {moneyText(home.data.user.balance)}</h1>
+          <Link className="avail-pill" to="/app/withdraw"><DashIcon name="wallet" /> Available Balance</Link>
+        </div>
+        <WalletArt />
+      </section>
+      <div className="bloom-pair">
+        <Link className="bloom-stat tone-pending" to="/app/withdraw#withdraw-page-history">
+          <span className="bloom-ico"><WalletGlyph name="clock" /></span>
+          <div><b>Pending Withdraw</b><strong>{history.data ? pendingCount : "—"}</strong></div>
+          <em aria-hidden="true">›</em>
+        </Link>
+        <Link className="bloom-stat tone-rejected" to="/app/withdraw#withdraw-page-history">
+          <span className="bloom-ico"><WalletGlyph name="x" /></span>
+          <div><b>Withdraw Rejected</b><strong>{history.data ? rejectedCount : "—"}</strong></div>
+          <em aria-hidden="true">›</em>
+        </Link>
+      </div>
+      <section className="bloom-card">
+        <h2><span aria-hidden="true">🌸</span> My Earnings</h2>
+        <div className="earn-grid-4">
+          <Link className="tone-staff" to="/app/transactions?filter=direct">
+            <span>⭐</span>
+            <b>Staff Earning</b>
+            <strong>Rs {moneyText(wallet.staff)}</strong>
+            <em>›</em>
+          </Link>
+          <button className="tone-flower" type="button" onClick={showFlower}>
+            <span>🌸</span>
+            <b>Flower Earning</b>
+            <strong>Rs {moneyText(wallet.flowers)}</strong>
+            <em>›</em>
+            {flowerNote && <small>{flowerNote}</small>}
+          </button>
+          <Link className="tone-withdraw" to="/app/wallet#history">
+            <span>👛</span>
+            <b>Approved Withdraw</b>
+            <strong>Rs {moneyText(wallet.withdrawn)}</strong>
+            <small>Total Withdraw Amount</small>
+            <em>›</em>
+          </Link>
+          <Link className="tone-indirect" to="/app/transactions">
+            <span>🪙</span>
+            <b>Indirect Earnings</b>
+            <strong>Rs {moneyText(wallet.indirect)}</strong>
+            <small>From Indirect Team</small>
+            <em>›</em>
+          </Link>
         </div>
       </section>
-      <div className="stat-row two">
-        {stats.map(([icon, tone, label, value]) => (
-          <article className="wstat" key={label}>
-            <span className={`tone ${tone}`}><WalletGlyph name={icon} /></span>
-            <b>Rs {value}</b>
-            <span>{label}</span>
-          </article>
-        ))}
-      </div>
-      <h2 className="sec-title"><i /> My Earnings</h2>
-      <div className="earn-pair three">
-        <article className="earn-tile">
-          <span className="soft-ico people"><WalletGlyph name="people" /></span>
-          <div>
-            <b>Rs {moneyText(wallet.staff)}</b>
-            <span>Staff Earning</span>
-          </div>
-        </article>
-        <article className="earn-tile">
-          <span className="soft-ico people"><WalletGlyph name="layers" /></span>
-          <div>
-            <b>Rs {moneyText(wallet.indirect)}</b>
-            <span>Indirect Referral Earning</span>
-            <small>Level 2 Rs {moneyText(wallet.indirect_level2)} · Level 3 Rs {moneyText(wallet.indirect_level3)}</small>
-          </div>
-        </article>
-        <button
-          type="button"
-          className="earn-tile"
-          onClick={() => {
-            const text = wallet.flower_locked ? "Flower Earnings unlock at Level 8 and stay separate from Current Balance." : "Flower Earnings are separate from Current Balance.";
-            setFlowerNote(text);
-            window.setTimeout(() => setFlowerNote(""), 4000);
-          }}
-        >
-          <span className="soft-ico bloom"><WalletGlyph name="sprout" /></span>
-          <div>
-            <b>Rs {moneyText(wallet.flowers)}</b>
-            <span>Flower Earning <span aria-hidden="true">🌸</span></span>
-            {flowerNote && <small>{flowerNote}</small>}
-          </div>
-        </button>
-      </div>
-      <article className="today-box">
-        <span>Total Approved Withdrawals</span>
-        <strong>Rs {moneyText(wallet.withdrawn)}</strong>
-        <p>Every approved withdrawal on this account. Pending and rejected amounts are not included.</p>
-      </article>
-      <h2 className="sec-title"><i /> Quick Actions</h2>
-      <div className="quick-row">
-        {actions.map(([to, icon, tone, label]) => (
-          <Link key={label} to={to}>
-            <span className={`qa ${tone}`}><WalletGlyph name={icon} /></span>
-            {label}
-          </Link>
-        ))}
-      </div>
-      <h2 className="sec-title"><i /> Withdrawal History</h2>
-      <WithdrawalHistory rows={withdrawalRows(history.data)} />
+      <section className="bloom-card">
+        <h2><span aria-hidden="true">⚡</span> Quick Action <Link to="/app/plans">›</Link></h2>
+        <div className="quick-four">
+          <Link to="/app/plans"><i><DashIcon name="plan" /></i>Deposit</Link>
+          <Link to="/app/withdraw"><i><DashIcon name="withdraw" /></i>Withdraw</Link>
+          <Link to="/app/withdraw#withdraw-page-history"><i><WalletGlyph name="clock" /></i>Withdraw History</Link>
+          <Link to="/app/transactions"><i><DashIcon name="task" /></i>Transaction History</Link>
+        </div>
+      </section>
+      <section className="bloom-card" id="history">
+        <h2><span aria-hidden="true">🕒</span> Recent Withdrawals <button type="button" onClick={() => setShowAll((open) => !open)}>{showAll ? "Show less" : "View All"} ›</button></h2>
+        <div className="recent-list">
+          {recent.map((row) => (
+            <Link key={row.id} to="/app/withdraw#withdraw-page-history">
+              <i><DashIcon name="wallet" /></i>
+              <div>
+                <b>Rs {moneyText(row.amount)}</b>
+                <span>{slipWhen(row.created_at) || "—"}</span>
+              </div>
+              <em className={row.status === "approved" ? "ok" : row.status}>{row.status === "approved" ? "Success" : withdrawalLabel(row.status)}</em>
+            </Link>
+          ))}
+          {history.data && rows.length === 0 && <p>No withdrawal yet.</p>}
+        </div>
+      </section>
     </div>
   );
 }
@@ -653,7 +817,8 @@ function Tx({ row }) {
 }
 
 export function Transactions() {
-  const [filter, setFilter] = useState("");
+  const [params] = useSearchParams();
+  const [filter, setFilter] = useState(params.get("filter") || "");
   const { data } = useLoad(`/api/user/transactions${filter ? `?filter=${filter}` : ""}`);
   const options = [["", "All Transactions"], ["ads", "Ads Earning"], ["direct", "Direct Referral Commission"], ["level2", "Level 2 Indirect Referral Commission"], ["level3", "Level 3 Indirect Referral Commission"], ["withdraw", "Withdraw"]];
   return (
@@ -670,40 +835,131 @@ export function Team() {
   const home = useLoad("/api/user/home");
   const { data } = useLoad("/api/user/team");
   const [copied, setCopied] = useState(false);
+  const [showAll, setShowAll] = useState(false);
   const copy = async () => {
     if (!home.data?.referral_link) return;
     await navigator.clipboard.writeText(home.data.referral_link);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
+  if (home.error) return <p className="pad">{home.error}</p>;
+  if (!home.data) return <p className="pad">Loading...</p>;
+  const progress = home.data.progress || {};
+  const user = home.data.user || {};
+  const members = data || [];
+  const shown = showAll ? members : members.slice(0, 5);
+  const done = Number(home.data.tasks_today || 0);
+  const limit = Number(home.data.daily_limit || 0);
   return (
-    <>
-      {home.error ? <p className="pad">{home.error}</p> : home.data ? <TeamBoard home={home.data} copied={copied} onCopy={copy} /> : <p className="pad">Loading...</p>}
-      <h2 className="sec-title"><i /> Members</h2>
-      {(data || []).length === 0 && <p className="pad">No active members yet.</p>}
-      <div className="list">{(data || []).map((m) => (
-        <div className="list-card" key={m.id}><div><b>{m.full_name}</b><div className="sub">Level {m.level || 0}</div></div><span className="badge" style={{ background: "#d1fae5", color: "#065f46" }}>Active</span></div>
-      ))}</div>
-    </>
+    <div className="bloom-wallet team-page">
+      <div className="wallet-head">
+        <h1><span aria-hidden="true">🌸</span> My Team</h1>
+        <div className="crumb">
+          <Link to="/app" aria-label="Home"><WalletGlyph name="home" /></Link>
+          <span>Home</span>
+          <span>/</span>
+          <em>My Team</em>
+        </div>
+      </div>
+      <section className="team-banner">
+        <span className="team-bloom" aria-hidden="true">🌸</span>
+        <div>
+          <h2>My Team</h2>
+          <span className="client-pill"><DashIcon name="team" /> {user.plan || "Member"}</span>
+          <p>Grow your team and earn more rewards.</p>
+        </div>
+        <span className="team-people" aria-hidden="true"><DashIcon name="team" /></span>
+      </section>
+      <section className="team-metrics">
+        <span className="level-chip">Level {progress.level || user.level || 0}</span>
+        <article><i>👥</i><b>Total Referral</b><strong>{home.data.team_total || 0}</strong></article>
+        <article><i className="ok">✓</i><b>Active</b><strong>{home.data.active_team || 0}</strong></article>
+        <article>
+          <i>📋</i>
+          <b>Task Limit</b>
+          <strong>{done} / {limit}</strong>
+          <small>Earning per Task <em>Rs {moneyText(progress.task_rate || 0)}</em></small>
+        </article>
+      </section>
+      <section className="ref-bar">
+        <span aria-hidden="true">🔗</span>
+        <div>
+          <b>Your Referral Link</b>
+          <input readOnly value={home.data.referral_link || ""} aria-label="Referral link" />
+        </div>
+        <button type="button" onClick={copy}>{copied ? "Copied" : "Copy"}</button>
+      </section>
+      <section className="bloom-card">
+        <h2><span aria-hidden="true">🌸</span> Team Members <button type="button" onClick={() => setShowAll((open) => !open)}>{showAll ? "Show less" : "View All"} ›</button></h2>
+        <div className="member-list">
+          {shown.map((member) => (
+            <article key={member.id}>
+              <i>{memberFlower(member.level)}</i>
+              <div>
+                <b>{member.full_name}</b>
+                <span>{member.email}</span>
+              </div>
+              <em className={Number(member.level) <= 1 ? "gold" : "pink"}>Level {member.level || 0}</em>
+            </article>
+          ))}
+          {data && members.length === 0 && <p>No approved members yet.</p>}
+        </div>
+      </section>
+    </div>
   );
 }
 
 export function Rewards() {
-  const { data } = useLoad("/api/user/rewards");
-  if (!data) return <p className="pad">Loading...</p>;
+  const rewards = useLoad("/api/user/rewards");
+  const home = useLoad("/api/user/home");
+  if (!rewards.data || !home.data) return <p className="pad">Loading...</p>;
+  const data = rewards.data;
+  const done = Number(home.data.tasks_today || 0);
+  const limit = Number(home.data.daily_limit || 0);
   return (
-    <>
-      <Back />
-      <div className="hero">
-        <div className="sub">Current level {data.level} · {data.active_team} approved joinings</div>
-        <h1>{data.next_level ? `${data.remaining_joinings} joinings left` : "Level 8 complete"}</h1>
-        {data.next_level && <p>Level {data.next_level} needs {data.next_required} approved joinings. {data.active_team} are complete.</p>}
+    <div className="bloom-wallet levels-page">
+      <div className="wallet-head">
+        <h1><span aria-hidden="true">🌸</span> Levels</h1>
+        <div className="crumb">
+          <Link to="/app" aria-label="Home"><WalletGlyph name="home" /></Link>
+          <span>Home</span>
+          <span>/</span>
+          <em>Levels</em>
+        </div>
       </div>
-      <div className="list">{data.items.map((item) => {
-        const left = Math.max(0, Number(item.required_team) - Number(data.active_team));
-        return <div className="list-card" key={item.id}><div><b>{item.title}</b><div className="sub">{item.required_team} approved joinings · {item.prize}</div><div className="sub">{item.reached ? "Complete" : `${left} remaining`}</div></div><span className={item.reached ? "green" : "sub"}>{item.reached ? "Reached" : "Locked"}</span></div>;
-      })}</div>
-    </>
+      <section className="level-banner">
+        <span className="team-bloom crown" aria-hidden="true">🌸</span>
+        <div>
+          <span className="client-pill">Current Level</span>
+          <h2>Bloom Level {data.level || 0}</h2>
+          <p>{data.next_level ? "You're growing beautifully!" : "Level 8 complete."}</p>
+        </div>
+        <aside>
+          <p><i>👥</i> Total Referral <b>{home.data.team_total || 0}</b></p>
+          <p><i>✓</i> Active <b>{data.active_team || 0}</b></p>
+          <p><i>📋</i> Task Limit <b>{done} / {limit}</b></p>
+        </aside>
+      </section>
+      <section className="bloom-card">
+        <h2><span aria-hidden="true">🌸</span> Level Progress</h2>
+        <p className="level-note">Approved members move the level. Each level keeps its own task rate.</p>
+        <div className="level-list">
+          {data.items.map((item) => {
+            const look = LEVEL_LOOK[item.level] || ["🌸", item.title];
+            return (
+              <article key={item.id}>
+                <i>{look[0]}</i>
+                <div>
+                  <b>{look[1]}</b>
+                  <span>{item.required_team} approved members · {item.prize}</span>
+                </div>
+                <em className={item.reached ? "reached" : "locked"}>{item.reached ? "Reached" : "Locked"}</em>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -757,7 +1013,7 @@ export function Withdraw() {
         <label htmlFor="withdraw-amount">Amount</label>
         <input id="withdraw-amount" inputMode="decimal" placeholder="Amount" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
         <label htmlFor="withdraw-method">Method</label>
-        <select id="withdraw-method" value={form.method} onChange={(e) => setForm({ ...form, method: e.target.value })}><option>JazzCash</option><option>Easypaisa</option></select>
+        <select id="withdraw-method" value={form.method} onChange={(e) => setForm({ ...form, method: e.target.value })}>{(pack.methods || ["JazzCash", "Easypaisa"]).map((name) => <option key={name}>{name}</option>)}</select>
         <label htmlFor="account-name">Account name</label>
         <input id="account-name" placeholder="Account name" value={form.account_name} onChange={(e) => setForm({ ...form, account_name: e.target.value })} />
         <label htmlFor="account-number">Account number</label>
@@ -773,7 +1029,11 @@ export function Withdraw() {
 
 export function Contact() {
   const { data } = useLoad("/api/user/contacts");
-  return <><Back /><h2 className="page-title">Contact Tasks</h2><div className="list">{(data || []).map((c) => <a className="list-card" key={c.id} href={`https://wa.me/${c.whatsapp}`}><div><b>{c.name}</b><div className="sub">{c.role}</div><div className="sub">{c.note}</div></div></a>)}</div></>;
+  return <><Back /><h2 className="page-title">Contact Us</h2><div className="list">{(data || []).map((c) => {
+    const digits = String(c.whatsapp || "").replace(/\D/g, "");
+    const href = c.number_type === "botim" ? `https://botim.me/${digits}` : `https://wa.me/${digits}`;
+    return <a className="list-card" key={c.id} href={href} target="_blank" rel="noreferrer"><div><b>{c.name}</b><div className="sub">{c.number_type === "botim" ? "Botim" : "WhatsApp"} · {c.purpose || c.role}</div><div className="sub">{c.note}</div></div></a>;
+  })}</div></>;
 }
 
 function fitScreenshot(file) {
@@ -805,31 +1065,64 @@ function fitScreenshot(file) {
   });
 }
 
+function planTone(name) {
+  const key = String(name || "").toLowerCase();
+  if (key.includes("gold")) return "#f5b301";
+  if (key.includes("standard")) return "#a855f7";
+  if (key.includes("super")) return "#ff4f9a";
+  if (key.includes("premium")) return "#60a5fa";
+  return "#ff4f9a";
+}
+
+function PlanBloom({ name, popular = false }) {
+  return (
+    <span className={popular ? "popular-bloom" : ""}>
+      <SakuraIcon tone={planTone(name)} className="plan-sakura" />
+    </span>
+  );
+}
+
+function StepDots({ current }) {
+  return <div className="step-dots" aria-label={`Step ${current} of 5`}>{[1, 2, 3, 4, 5].map((n) => <i key={n} className={n === current ? "on" : n < current ? "done" : ""}>{n}</i>)}</div>;
+}
+
 export function Deposit() {
   const { data, error, reload } = useLoad("/api/user/plans");
   const [planId, setPlanId] = useState("");
   const [sender, setSender] = useState("");
+  const [payer, setPayer] = useState("");
+  const [method, setMethod] = useState("");
   const [shot, setShot] = useState(null);
   const [shotUrl, setShotUrl] = useState("");
-  const [message, setMessage] = useState("");
   const [formError, setFormError] = useState("");
   const [sending, setSending] = useState(false);
-  const pending = data?.pending_deposit;
-  const pendingUpgrade = data?.pending_upgrade;
+  const [step, setStep] = useState("plan");
+  const [opened, setOpened] = useState(false);
   useEffect(() => () => { if (shotUrl) URL.revokeObjectURL(shotUrl); }, [shotUrl]);
   useEffect(() => {
-    const waiting = pending?.has_screenshot ? null : pending || (pendingUpgrade?.has_screenshot ? null : pendingUpgrade);
-    if (!waiting) return;
-    setPlanId((current) => current || String(waiting.plan_id || ""));
-    setSender((current) => current || waiting.sender || "");
-  }, [pending, pendingUpgrade]);
+    if (!data || opened) return;
+    const pending = data.pending_deposit;
+    const upgrade = data.pending_upgrade;
+    const waiting = (pending?.has_screenshot ? null : pending) || (upgrade?.has_screenshot ? null : upgrade);
+    if (pending?.has_screenshot || upgrade?.has_screenshot) setStep("review");
+    else if (waiting) {
+      setPlanId(String(waiting.plan_id || ""));
+      setSender(waiting.sender || "");
+      setStep("pay");
+    }
+    const savedMethod = (waiting || pending || upgrade)?.method || "";
+    const matched = (data.gateways || []).find((account) => savedMethod.toLowerCase().includes(account.name.toLowerCase()));
+    setMethod((matched || data.gateways?.[0] || {}).name || "");
+    setOpened(true);
+  }, [data, opened]);
   if (error) return <p className="pad">{error}</p>;
   if (!data) return <p className="pad">Loading...</p>;
-  const chosen = (data.plans || []).find((plan) => String(plan.id) === String(planId));
+  const plans = (data.plans || []).filter((plan) => !data.current_plan || Number(plan.price) > Number(data.current_price || 0));
+  const chosen = plans.find((plan) => String(plan.id) === String(planId)) || (data.plans || []).find((plan) => String(plan.id) === String(planId));
   const accounts = data.gateways || [];
-  const copyNumber = (account) => {
-    navigator.clipboard?.writeText(account.account_number).then(() => setMessage("Account number copied.")).catch(() => setMessage(account.account_number));
-  };
+  const selectedAccount = accounts.find((account) => account.name === method) || accounts[0];
+  const priceOf = (plan) => data.current_plan ? (Number(plan.price) - Number(data.current_price || 0)).toFixed(2) : plan.price;
+  const topPrice = Math.max(0, ...plans.map((plan) => Number(plan.price) || 0));
   const chooseShot = (e) => {
     const file = e.target.files && e.target.files[0];
     if (shotUrl) URL.revokeObjectURL(shotUrl);
@@ -839,9 +1132,12 @@ export function Deposit() {
   const submit = async (e) => {
     e.preventDefault();
     setFormError("");
-    setMessage("");
-    if (!accounts.length) {
+    if (!accounts.length || !selectedAccount) {
       setFormError("Payment account is not added yet.");
+      return;
+    }
+    if (!sender.trim()) {
+      setFormError("Enter the sender phone number.");
       return;
     }
     if (!shot) {
@@ -853,64 +1149,102 @@ export function Deposit() {
       const picture = await fitScreenshot(shot);
       const body = new FormData();
       body.append("plan_id", planId);
-      body.append("sender", sender);
-      body.append("method", accounts.map((account) => account.name).join(" / "));
+      body.append("sender", payer.trim() ? `${payer.trim()} · ${sender.trim()}` : sender.trim());
+      body.append("method", selectedAccount.name);
       body.append("screenshot", picture);
-      const res = await api("/api/user/deposits", { method: "POST", body });
-      setMessage(res.kind === "upgrade" ? "Upgrade request sent. Admin will approve it." : "Payment sent. Admin will approve your plan.");
-      setPlanId("");
-      setSender("");
-      setShot(null);
-      if (shotUrl) URL.revokeObjectURL(shotUrl);
-      setShotUrl("");
-      e.target.reset();
+      await api("/api/user/deposits", { method: "POST", body });
+      setStep("review");
       reload();
     } catch (err) { setFormError(err.message); }
     finally { setSending(false); }
   };
+  const waitingPlan = data.pending_upgrade?.plan || data.pending_deposit?.plan || chosen?.name;
+  const waitingAmount = data.pending_upgrade?.amount || data.pending_deposit?.amount || (chosen ? priceOf(chosen) : "");
   return (
-    <>
-      <Back />
-      <div className="hero"><h1>Plan Upgrade</h1><p>Pay with JazzCash or Easypaisa. The plan starts after admin approval.</p></div>
-      {data.current_plan && <p className="pad">Current plan: <b>{data.current_plan}</b></p>}
-      {data.pending_deposit && <p className="pad">Waiting approval: {data.pending_deposit.plan} · Rs {data.pending_deposit.amount}</p>}
-      {data.pending_upgrade && <p className="pad">Upgrade waiting: {data.pending_upgrade.plan} · Rs {data.pending_upgrade.amount}</p>}
-      {(data.pending_deposit && !data.pending_deposit.has_screenshot) || (data.pending_upgrade && !data.pending_upgrade.has_screenshot) ? <p className="pad lock-note">The payment is saved, but the screenshot did not upload. Choose the photo again. Wait until its preview appears, then submit.</p> : null}
-      <div className="plan-grid">
-        {(data.plans || []).map((plan) => {
-          const currentPrice = Number((data.plans || []).find((item) => item.id === data.current_plan_id)?.price || 0);
-          const label = plan.id === data.current_plan_id ? "Your plan" : !data.current_plan ? "Buy" : Number(plan.price) > currentPrice ? "Upgrade" : "Lower plan";
-          return (
-          <button type="button" key={plan.id} className={String(planId) === String(plan.id) ? "plan-card on" : "plan-card"} onClick={() => setPlanId(plan.id)}>
-            <span className="badge" style={{ background: plan.color, color: plan.text_color }}>{plan.name}</span>
-            <strong>Rs {plan.price}</strong>
-            <span className="sub">{label}</span>
-          </button>
-          );
-        })}
-      </div>
-      <form className="pad plan-form" onSubmit={submit}>
-        <label>Selected plan</label>
-        <input readOnly value={chosen ? `${chosen.name} · Rs ${chosen.price}` : "Tap a plan above"} />
-        <label>Sender number</label>
-        <input placeholder="03xxxxxxxxx" value={sender} onChange={(e) => setSender(e.target.value)} />
-        {accounts.map((account) => (
-          <div className="pay-to" key={account.id || account.name}>
-            <span>{account.name}</span>
-            {account.account_name ? <strong>{account.account_name}</strong> : null}
-            <em>{account.account_number}</em>
-            <button type="button" onClick={() => copyNumber(account)}>Copy number</button>
+    <div className="bloom-wallet pay-flow">
+      <BlossomScene />
+      {step === "review" ? (
+        <section className="review-panel">
+          <div className="review-bloom">
+            <SakuraIcon className="wreath w1" />
+            <SakuraIcon className="wreath w2" tone="#ffd0e6" />
+            <SakuraIcon className="wreath w3" />
+            <SakuraIcon className="wreath w4" tone="#fff" />
+            <span className="review-shield" aria-hidden="true">✓</span>
           </div>
-        ))}
-        {!accounts.length && <div className="pay-to"><p>Payment account is not added yet.</p></div>}
-        <label>Payment screenshot</label>
-        <input name="screenshot" type="file" accept="image/*" onChange={chooseShot} />
-        {shotUrl && <img className="shot-preview" src={shotUrl} alt="Selected payment screenshot" />}
-        <button className="btn" style={{ marginTop: 14 }} disabled={sending}>{sending ? "Sending..." : data.current_plan ? "Request upgrade" : "Submit payment"}</button>
-        {formError && <div className="error">{formError}</div>}
-        {message && <p>{message}</p>}
-      </form>
-    </>
+          <h1>Account Under Review</h1>
+          <p>Step 5 of 5 · Your information is being verified by the team.</p>
+          <StepDots current={5} />
+          <article>
+            <b>Transaction submitted successfully</b>
+            <span>{waitingPlan ? `${waitingPlan} · Rs ${moneyText(waitingAmount)}` : "Payment received"}</span>
+            <p>The new plan and task limit start only after admin approval.</p>
+          </article>
+          <Link className="btn" to="/app">Back to home</Link>
+        </section>
+      ) : step === "pay" && chosen ? (
+        <form onSubmit={submit}>
+          <h1>Deposit Confirmation</h1>
+          <p className="muted">Step 3 of 5 · Complete your payment to activate the plan</p>
+          <StepDots current={3} />
+          <div className="selected-plan"><PlanBloom name={chosen.name} popular /><div><b>{chosen.name}</b><strong>Rs {moneyText(priceOf(chosen))}</strong><small>{chosen.daily_tasks} tasks per day</small></div></div>
+          <h2>Payment instructions</h2>
+          {selectedAccount ? (
+            <div className="pay-account">
+              {selectedAccount.image ? <img src={selectedAccount.image} alt="" /> : <PlanBloom name={selectedAccount.name} />}
+              <div><b>{selectedAccount.name}</b><span>{selectedAccount.account_name || "Account name"}</span><strong>{selectedAccount.account_number}</strong></div>
+              <button type="button" onClick={() => navigator.clipboard?.writeText(selectedAccount.account_number)}>Copy</button>
+            </div>
+          ) : <p>Payment account is not added yet.</p>}
+          <label htmlFor="payer-name">Account name</label>
+          <input id="payer-name" value={payer} onChange={(e) => setPayer(e.target.value)} placeholder="Your name" />
+          <label htmlFor="sender-phone">Phone number</label>
+          <input id="sender-phone" value={sender} onChange={(e) => setSender(e.target.value)} placeholder="03xxxxxxxxx" inputMode="tel" />
+          <h2>Upload payment proof</h2>
+          <label className="file-pick">
+            Choose file
+            <input type="file" accept="image/*" onChange={chooseShot} />
+          </label>
+          {shotUrl && <img className="shot-preview" src={shotUrl} alt="Selected payment screenshot" />}
+          {(data.pending_deposit && !data.pending_deposit.has_screenshot) || (data.pending_upgrade && !data.pending_upgrade.has_screenshot) ? <p className="lock-note">The payment is saved, but the screenshot did not upload. Choose the photo again, then submit.</p> : null}
+          {formError && <div className="error">{formError}</div>}
+          <div className="step-actions">
+            <button type="button" className="btn ghost" onClick={() => setStep("plan")}>Back</button>
+            <button className="btn" disabled={sending}>{sending ? "Sending..." : "Submit deposit"}</button>
+          </div>
+        </form>
+      ) : (
+        <div>
+          <h1>{data.current_plan ? "Upgrade Your Plan" : "Choose Your Plan"}</h1>
+          <p className="muted">{data.current_plan ? "Pay only the difference. The new plan starts after approval." : "Step 2 of 5 · Unlock more rewards with the right plan"}</p>
+          <StepDots current={2} />
+          <div className="plan-picks">
+            {plans.map((plan) => (
+              <button type="button" key={plan.id} className={String(planId) === String(plan.id) ? "on" : ""} onClick={() => setPlanId(plan.id)}>
+                {Number(plan.price) === topPrice && plans.length > 1 && <em>Most popular</em>}
+                <PlanBloom name={plan.name} popular={Number(plan.price) === topPrice && plans.length > 1} />
+                <b>{plan.name}</b>
+                <strong>Rs {moneyText(priceOf(plan))}</strong>
+                <small>{plan.daily_tasks} tasks per day{data.current_plan ? " · additional payment" : ""}</small>
+              </button>
+            ))}
+            {!plans.length && <p>You are already on the highest plan.</p>}
+          </div>
+          <h2>Select payment method</h2>
+          <div className="method-picks">
+            {accounts.map((account) => (
+              <button type="button" key={account.id || account.name} className={method === account.name ? "on" : ""} onClick={() => setMethod(account.name)}>
+                {account.image ? <img src={account.image} alt="" /> : <PlanBloom name={account.name} />}
+                {account.name}
+              </button>
+            ))}
+            {!accounts.length && <p>Payment account is not added yet.</p>}
+          </div>
+          {formError && <div className="error">{formError}</div>}
+          {!!plans.length && <button className="btn" type="button" onClick={() => { if (!planId) { setFormError("Choose a plan."); return; } setFormError(""); setStep("pay"); }}>Continue to payment</button>}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -945,37 +1279,91 @@ function PasswordField({ id, value, onChange, placeholder, autoComplete }) {
   );
 }
 
+export function Impersonate() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get("code") || "";
+    api("/api/auth/impersonate", { method: "POST", body: { code } }).then((res) => {
+      sessionStorage.setItem("flower_token", res.token);
+      sessionStorage.setItem("flower_user", JSON.stringify(res.user));
+      navigate("/app");
+    }).catch(() => navigate("/login"));
+  }, [navigate]);
+  return <p className="pad">Opening the user dashboard...</p>;
+}
+
+function BloomAuth({ children }) {
+  return (
+    <div className="bloom-stage">
+      <BlossomScene />
+      <div className="bloom-auth">
+      <BlossomScene />
+      <header className="user-bar brand-bar">
+        <span className="burger" aria-hidden="true"><span /><span /><span /></span>
+        <div className="brand-lockup"><FlowerMark /><b>Flowers</b><FlowerMark /></div>
+        <span className="brand-flower"><FlowerMark /></span>
+      </header>
+      {children}
+      </div>
+    </div>
+  );
+}
+
 export function Login({ role = "user" }) {
   const navigate = useNavigate();
   const [identity, setIdentity] = useState("");
   const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(true);
   const [error, setError] = useState("");
   const expired = new URLSearchParams(window.location.search).get("expired");
   const submit = async (e) => {
     e.preventDefault();
     try {
       const res = await api("/api/auth/login", { method: "POST", body: { identity, password, role } });
-      localStorage.setItem("flower_token", res.token);
-      localStorage.setItem("flower_user", JSON.stringify(res.user));
+      const store = remember ? localStorage : sessionStorage;
+      sessionStorage.removeItem("flower_token");
+      sessionStorage.removeItem("flower_user");
+      localStorage.removeItem("flower_token");
+      localStorage.removeItem("flower_user");
+      store.setItem("flower_token", res.token);
+      store.setItem("flower_user", JSON.stringify(res.user));
+      if (res.session_key) localStorage.setItem("flower_admin_session", res.session_key);
       navigate(role === "admin" ? "/admin" : "/app");
     } catch (err) { setError(err.message); }
   };
+  if (role === "admin") {
+    return (
+      <AuthShell>
+        <form className="card" onSubmit={submit}>
+          <h2>Admin login</h2>
+          <p className="muted">Open the Flower admin dashboard</p>
+          <label htmlFor="identity">Email, username, or phone</label>
+          <input id="identity" value={identity} onChange={(e) => setIdentity(e.target.value)} placeholder="name@email.com" autoComplete="username" />
+          <label htmlFor="password">Password</label>
+          <PasswordField id="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter your password" autoComplete="current-password" />
+          <button className="btn" style={{ marginTop: 18 }}>Sign in</button>
+          {error && <div className="error">{error}</div>}
+        </form>
+      </AuthShell>
+    );
+  }
   return (
-    <AuthShell>
-      <form className="card" onSubmit={submit}>
-        <div className="card-logo"><img src={LOGO} alt="" /></div>
-        <h2>{role === "admin" ? "Admin login" : "Welcome back"}</h2>
-        <p className="muted">{role === "admin" ? "Open the Flower admin dashboard" : "Sign in and continue your daily earning"}</p>
-        <label htmlFor="identity">Email, username, or phone</label>
-        <input id="identity" value={identity} onChange={(e) => setIdentity(e.target.value)} placeholder="name@email.com" autoComplete="username" inputMode="email" />
+    <BloomAuth>
+      <form className="bloom-auth-card" onSubmit={submit}>
+        <span className="welcome-bloom" aria-hidden="true"><SakuraIcon /></span>
+        <h1>Welcome Back!</h1>
+        <p>Sign in to your Flowers account</p>
+        <label htmlFor="identity">Username or email</label>
+        <input id="identity" value={identity} onChange={(e) => setIdentity(e.target.value)} placeholder="Username or email" autoComplete="username" />
         <label htmlFor="password">Password</label>
-        <PasswordField id="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter your password" autoComplete="current-password" />
-        <button className="btn" style={{ marginTop: 18 }}>Sign in</button>
+        <PasswordField id="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" autoComplete="current-password" />
+        <label className="remember"><input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} /> Remember me</label>
+        <button className="btn">Sign in</button>
         {error && <div className="error">{error}</div>}
         {!error && expired && <div className="error">Your session ended. Please sign in again.</div>}
-        {role === "user" && <p className="auth-switch">New here? <Link to="/register">Create an account</Link></p>}
+        <p className="auth-switch">Don't have an account? <Link to="/register">Create an account</Link></p>
       </form>
-    </AuthShell>
+    </BloomAuth>
   );
 }
 
@@ -994,31 +1382,25 @@ export function Register() {
   };
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
   return (
-    <AuthShell>
-      <form className="card" onSubmit={submit}>
-        <div className="card-logo"><img src={LOGO} alt="" /></div>
-        <h2>Create your account</h2>
-        <p className="muted">Join Flower and start with your referral link</p>
-        <div className="form-grid">
-          <div>
-            <label htmlFor="full_name">Full name</label>
-            <input id="full_name" placeholder="Aisha Khan" value={form.full_name} onChange={set("full_name")} autoComplete="name" />
-          </div>
-          <div>
-            <label htmlFor="phone">Phone</label>
-            <input id="phone" placeholder="03xxxxxxxxx" value={form.phone} onChange={set("phone")} autoComplete="tel" inputMode="tel" />
-          </div>
-        </div>
-        <label htmlFor="email">Email</label>
-        <input id="email" placeholder="you@email.com" value={form.email} onChange={set("email")} autoComplete="email" inputMode="email" />
+    <BloomAuth>
+      <form className="bloom-auth-card" onSubmit={submit}>
+        <h1>Create Your Flowers Account</h1>
+        <p>Step 1 of 5 · Basic information</p>
+        <StepDots current={1} />
+        <label htmlFor="full_name">Full name</label>
+        <input id="full_name" placeholder="Enter your full name" value={form.full_name} onChange={set("full_name")} autoComplete="name" />
+        <label htmlFor="phone">Phone number</label>
+        <input id="phone" placeholder="03xxxxxxxxx" value={form.phone} onChange={set("phone")} autoComplete="tel" inputMode="tel" />
+        <label htmlFor="email">Email address</label>
+        <input id="email" placeholder="Enter your email address" value={form.email} onChange={set("email")} autoComplete="email" inputMode="email" />
         <label htmlFor="new-password">Password</label>
         <PasswordField id="new-password" value={form.password} onChange={set("password")} placeholder="At least 6 characters" autoComplete="new-password" />
         <label htmlFor="referral">Referral code</label>
         <input id="referral" placeholder="Optional" value={form.referral} onChange={set("referral")} />
-        <button className="btn" style={{ marginTop: 18 }}>Create account</button>
+        <button className="btn">Next</button>
         {error && <div className="error">{error}</div>}
         <p className="auth-switch">Already have an account? <Link to="/login">Sign in</Link></p>
       </form>
-    </AuthShell>
+    </BloomAuth>
   );
 }
