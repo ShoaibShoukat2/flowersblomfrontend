@@ -1,6 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { savedUser } from "./api";
-import { AdminAccount, AdminHome, AdminShell, Analytics, Channels, Contacts, Deposits, Gateways, Leaderboard, Levels, Referrals, Rejected, Settings, TodayUsers, TodayWithdrawals, Transactions as AdminTransactions, Upgrades, UserDetail, Users, Withdrawals } from "./admin";
+import { AdminAccount, AdminHome, AdminShell, Analytics, Channels, Contacts, Deposits, Gateways, Leaderboard, Levels, Referrals, Rejected, Settings, TodayUsers, TodayWithdrawals, Transactions as AdminTransactions, Upgrades, UserDetail, UserTeam, UserTransactions, UserWithdrawals, Users, Withdrawals } from "./admin";
 import { Channels as UserChannels, Contact, Dashboard, Deposit, Impersonate, Login, Register, Rewards as UserRewards, Team, Transactions, UserShell, Wallet, Withdraw, Work } from "./user";
 
 function Guard({ role, children }) {
@@ -32,6 +32,9 @@ export default function App() {
       <Route path="/admin/transactions" element={<Guard role="admin"><AdminShell><AdminTransactions /></AdminShell></Guard>} />
       <Route path="/admin/users" element={<Guard role="admin"><AdminShell><Users searchable /></AdminShell></Guard>} />
       <Route path="/admin/users/:id" element={<Guard role="admin"><AdminShell><UserDetail /></AdminShell></Guard>} />
+      <Route path="/admin/users/:id/transactions" element={<Guard role="admin"><AdminShell><UserTransactions /></AdminShell></Guard>} />
+      <Route path="/admin/users/:id/withdrawals" element={<Guard role="admin"><AdminShell><UserWithdrawals /></AdminShell></Guard>} />
+      <Route path="/admin/users/:id/team" element={<Guard role="admin"><AdminShell><UserTeam /></AdminShell></Guard>} />
       <Route path="/admin/leaderboard" element={<Guard role="admin"><AdminShell><Leaderboard /></AdminShell></Guard>} />
       <Route path="/admin/referrals" element={<Guard role="admin"><AdminShell><Referrals /></AdminShell></Guard>} />
       <Route path="/admin/deposits" element={<Guard role="admin"><AdminShell><Deposits /></AdminShell></Guard>} />

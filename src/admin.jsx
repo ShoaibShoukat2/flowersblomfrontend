@@ -3,6 +3,11 @@ import { Link, NavLink, useLocation, useNavigate, useParams, useSearchParams } f
 import { api, clearSession, LOGO, token } from "./api";
 
 const refreshCountsContext = createContext(() => {});
+const toastContext = createContext(() => {});
+
+function refreshAdmin() {
+  window.dispatchEvent(new Event("admin-data-refresh"));
+}
 
 const groups = [
   ["Menu", [
@@ -16,7 +21,7 @@ const groups = [
     ["/admin/today-withdrawals", "check", "Today approved Withdrawal"],
     ["/admin/rejected", "x", "Rejected User"],
     ["/admin/upgrades", "up", "Plan Upgrade"],
-    ["/admin/gateways", "card", "Easypaisa & Jazz Cash"],
+    ["/admin/gateways", "card", "Payment methods"],
   ]],
   ["Settings", [
     ["/admin/settings", "gear", "General Setting"],
@@ -53,6 +58,7 @@ function NavIcon({ name }) {
     minus: "M6 12h12",
     bars: "M5 19V11M10 19V7M15 19v-5M20 19V4",
     layers: "M12 4l8 4-8 4-8-4 8-4zM4 12l8 4 8-4M4 16l8 4 8-4",
+    search: "M11 18a7 7 0 1 1 0-14 7 7 0 0 1 0 14zM20 20l-3.5-3.5",
   };
   return (
     <svg className="nav-ico" viewBox="0 0 24 24" aria-hidden="true">
@@ -153,23 +159,27 @@ function NavLinks({ onPick, counts }) {
 
 export function AdminShell({ children }) {
   const [open, setOpen] = useState(false);
-  const [q, setQ] = useState("");
   const [counts, setCounts] = useState({ deposits: 0, withdrawals: 0, upgrades: 0 });
+  const [toasts, setToasts] = useState([]);
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const refreshCounts = () => api("/api/admin/summary").then((data) => {
     setCounts({ deposits: data.pending_deposits || 0, withdrawals: data.pending_withdrawals || 0, upgrades: data.pending_upgrades || 0 });
   }).catch(() => {});
   useEffect(() => { refreshCounts(); }, [pathname]);
-  const search = (e) => {
-    e.preventDefault();
-    setOpen(false);
-    navigate(`/admin/users?status=all&q=${encodeURIComponent(q.trim())}`);
+  const pushToast = (text, kind = "ok") => {
+    const id = `${Date.now()}-${Math.random()}`;
+    setToasts((current) => [...current.slice(-3), { id, text, kind }]);
+    window.setTimeout(() => setToasts((current) => current.filter((item) => item.id !== id)), 3600);
   };
   const logout = () => { clearSession(); window.location.href = "/admin/login"; };
   return (
+    <toastContext.Provider value={pushToast}>
     <refreshCountsContext.Provider value={refreshCounts}>
     <div className="admin">
+      <div className="toast-stack" aria-live="polite">
+        {toasts.map((item) => <div className={item.kind === "error" ? "toast err" : "toast"} key={item.id}>{item.text}</div>)}
+      </div>
       <aside className="side">
         <div className="brand"><img src={LOGO} alt="Flower" /><b>Flower Admin</b><span>Control desk</span></div>
         <div className="side-nav"><NavLinks counts={counts} /></div>
@@ -178,9 +188,12 @@ export function AdminShell({ children }) {
       <div className="admin-col">
         <header className="admin-top">
           <button className="burger" aria-label="Open admin menu" onClick={() => setOpen(true)}><span /><span /><span /></button>
-          <form onSubmit={search}>
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, email, or phone" aria-label="Search user" />
-          </form>
+          <SearchBox
+            placeholder="Search name, email, or phone"
+            suggestPath="/api/admin/users?status=all"
+            onSearch={(value) => { setOpen(false); navigate(`/admin/users?status=all&q=${encodeURIComponent(value)}`); }}
+            onPick={(row) => { setOpen(false); navigate(`/admin/users/${row.id}`); }}
+          />
           <nav className="quick-rail" aria-label="Admin features">
             {quickLinks.map(([to, icon, label, countKey]) => (
               <NavLink key={to} to={to} end={to === "/admin"}>
@@ -211,10 +224,27 @@ export function AdminShell({ children }) {
       </div>
     </div>
     </refreshCountsContext.Provider>
+    </toastContext.Provider>
   );
 }
 
+function EmailLink({ email, userId }) {
+  if (!email || email === "—") return "—";
+  const to = userId ? `/admin/users/${userId}` : `/admin/users?status=all&q=${encodeURIComponent(email)}`;
+  return <Link className="mail-link" to={to} onClick={(e) => e.stopPropagation()}>{email}</Link>;
+}
+
+function fieldText(label, value, detail) {
+  const text = value || "—";
+  if (!String(text).includes("@")) return text;
+  const name = String(label || "").toLowerCase();
+  if (!name.includes("email") && name !== "from") return text;
+  const userId = name === "from" ? detail.sourceUserId : (detail.userId || detail.account?.id);
+  return <EmailLink email={text} userId={userId} />;
+}
+
 function DetailModal({ detail, onClose, onAction }) {
+  const toast = useContext(toastContext);
   const [reason, setReason] = useState("");
   const [custom, setCustom] = useState("");
   const [pay, setPay] = useState("no");
@@ -237,11 +267,11 @@ function DetailModal({ detail, onClose, onAction }) {
             <h2>{detail.title}</h2>
             {detail.subtitle && <p className="sub">{detail.subtitle}</p>}
           </div>
-          <button className="modal-x" type="button" onClick={onClose}>Close</button>
+          <button className="modal-x" type="button" onClick={onClose} aria-label="Close">×</button>
         </div>
         <SlipImage src={detail.image} />
         <div className="modal-fields">
-          {detail.fields.map(([label, value]) => <div key={label}><span>{label}</span><b>{value || "—"}</b></div>)}
+          {detail.fields.map(([label, value]) => <div key={label}><span>{label}</span><b>{fieldText(label, value, detail)}</b></div>)}
         </div>
         {detail.loading && <p className="sub">Loading account, upliner, and team...</p>}
         {detail.account && (
@@ -350,7 +380,7 @@ function DetailModal({ detail, onClose, onAction }) {
             )}
             <div className="row-actions">
               <button className="btn small" type="button" onClick={() => onAction(detail.id, "approve", { pay_commission: pay === "yes" })}>{detail.reapprove ? "Re-Approve" : "Approve"}</button>
-              {!detail.reapprove && <button className="btn ghost small" type="button" onClick={() => { if (!chosen) { window.alert("A rejection reason is required."); return; } onAction(detail.id, "reject", { reason: chosen }); }}>Reject</button>}
+              {!detail.reapprove && <button className="btn ghost small" type="button" onClick={() => { if (!chosen) { toast("A rejection reason is required.", "error"); return; } onAction(detail.id, "reject", { reason: chosen }); }}>Reject</button>}
             </div>
           </div>
         )}
@@ -361,8 +391,104 @@ function DetailModal({ detail, onClose, onAction }) {
 
 function useLoad(path) {
   const [data, setData] = useState(null);
-  useEffect(() => { api(path).then(setData).catch(() => setData(null)); }, [path]);
+  const [tick, setTick] = useState(0);
+  useEffect(() => { setData(null); }, [path]);
+  useEffect(() => {
+    let live = true;
+    api(path).then((next) => { if (live) setData(next); }).catch((err) => {
+      if (!live || err.name === "AbortError") return;
+      setData(null);
+    });
+    return () => { live = false; };
+  }, [path, tick]);
+  useEffect(() => {
+    const bump = () => setTick((value) => value + 1);
+    window.addEventListener("admin-data-refresh", bump);
+    return () => window.removeEventListener("admin-data-refresh", bump);
+  }, []);
   return data;
+}
+
+function rowsOf(data) {
+  if (Array.isArray(data)) return data;
+  return data?.rows || [];
+}
+
+function SearchBox({ value = "", onSearch, onPick, placeholder, suggestPath }) {
+  const [draft, setDraft] = useState(value || "");
+  const [tips, setTips] = useState([]);
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { setDraft(value || ""); }, [value]);
+  useEffect(() => {
+    const q = draft.trim();
+    if (!suggestPath || q.length < 2) {
+      setTips([]);
+      setBusy(false);
+      return undefined;
+    }
+    const ctrl = new AbortController();
+    setBusy(true);
+    const timer = window.setTimeout(() => {
+      const join = suggestPath.includes("?") ? "&" : "?";
+      api(`${suggestPath}${join}suggest=1&limit=8&q=${encodeURIComponent(q)}`, { signal: ctrl.signal })
+        .then((payload) => {
+          setTips(Array.isArray(payload) ? payload : (payload.rows || []));
+          setBusy(false);
+        })
+        .catch((err) => {
+          if (err.name === "AbortError") return;
+          setTips([]);
+          setBusy(false);
+        });
+    }, 280);
+    return () => {
+      window.clearTimeout(timer);
+      ctrl.abort();
+    };
+  }, [draft, suggestPath]);
+  const pick = (row) => {
+    setOpen(false);
+    setDraft(row.email || "");
+    if (onPick) onPick(row);
+    else onSearch(row.email || "");
+  };
+  return (
+    <form className="search-row" onSubmit={(e) => { e.preventDefault(); setOpen(false); onSearch(draft.trim()); }}>
+      <input value={draft} placeholder={placeholder} aria-label={placeholder || "Search"} onChange={(e) => { setDraft(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} onBlur={() => window.setTimeout(() => setOpen(false), 180)} />
+      <button className="btn small search-go" type="submit" aria-label="Search"><NavIcon name="search" /><span>Search</span></button>
+      {open && draft.trim().length >= 2 && (
+        <div className="suggest" role="listbox">
+          {busy && <p>Searching...</p>}
+          {!busy && tips.length === 0 && <p>No account found</p>}
+          {!busy && tips.map((row) => (
+            <button type="button" key={`${row.id}-${row.email}`} onMouseDown={(e) => { e.preventDefault(); pick(row); }}>
+              <b>{row.full_name || row.email}</b>
+              <span>{row.email}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </form>
+  );
+}
+
+function Pager({ page, pages, onPage }) {
+  if (!pages || Number(pages) <= 1) return null;
+  return (
+    <div className="row-actions">
+      <button className="btn ghost small" type="button" disabled={Number(page) <= 1} onClick={() => onPage(Number(page) - 1)}>Previous</button>
+      <span className="sub">Page {page} of {pages}</span>
+      <button className="btn ghost small" type="button" disabled={Number(page) >= Number(pages)} onClick={() => onPage(Number(page) + 1)}>Next</button>
+    </div>
+  );
+}
+
+function whenText(value) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value).replace("T", " ").slice(0, 16);
+  return date.toLocaleString();
 }
 
 function PlanBadge({ name, color, text }) {
@@ -530,11 +656,20 @@ export function Users({ status = "approved", title = "Approved users", searchabl
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const q = params.get("q") || "";
+  const page = params.get("page") || "1";
   const current = params.get("status") || status;
-  const data = useLoad(`/api/admin/users?status=${encodeURIComponent(current)}&q=${encodeURIComponent(q)}`);
+  const data = useLoad(`/api/admin/users?status=${encodeURIComponent(current)}&q=${encodeURIComponent(q)}&page=${page}`);
+  const rows = rowsOf(data);
   const setFilter = (nextStatus) => {
     const next = new URLSearchParams(params);
     next.set("status", nextStatus);
+    next.delete("page");
+    setParams(next);
+  };
+  const commit = (value) => {
+    const next = new URLSearchParams(params);
+    if (value) next.set("q", value); else next.delete("q");
+    next.delete("page");
     setParams(next);
   };
   return (
@@ -542,13 +677,7 @@ export function Users({ status = "approved", title = "Approved users", searchabl
       <h1>{searchable ? "Users" : title}</h1>
       {searchable && (
         <>
-          <form className="search-row" onSubmit={(e) => e.preventDefault()}>
-            <input value={q} placeholder="Name, email, phone, or code" onChange={(e) => {
-              const next = new URLSearchParams(params);
-              if (e.target.value) next.set("q", e.target.value); else next.delete("q");
-              setParams(next);
-            }} />
-          </form>
+          <SearchBox value={q} placeholder="Search by full email" suggestPath={`/api/admin/users?status=${encodeURIComponent(current)}`} onSearch={commit} onPick={(row) => navigate(`/admin/users/${row.id}`)} />
           <div className="filters">
             {[["all", "All"], ["approved", "Approved"], ["pending", "Pending"], ["rejected", "Rejected"]].map(([value, label]) => (
               <button key={value} className={current === value ? "chip on" : "chip"} type="button" onClick={() => setFilter(value)}>{label}</button>
@@ -556,20 +685,29 @@ export function Users({ status = "approved", title = "Approved users", searchabl
           </div>
         </>
       )}
-      <div className="table-wrap desktop-table"><table><thead><tr><th>#</th><th>Name</th><th>Phone</th><th>Plan</th><th>Status</th><th></th></tr></thead><tbody>{(data || []).map((u, i) => <tr className="click-row" key={u.id} onClick={() => navigate(`/admin/users/${u.id}`)}><td>{i + 1}</td><td><b>{u.full_name}</b><div className="sub">{u.email}</div></td><td>{u.phone || "—"}</td><td><PlanBadge name={u.plan} color={u.plan_color} text={u.plan_text} /></td><td>{u.paid ? "Paid" : "Unpaid"}</td><td><Link to={`/admin/users/${u.id}`} onClick={(e) => e.stopPropagation()}>Details</Link></td></tr>)}</tbody></table></div>
-      <div className="cards">{(data || []).map((u) => <Link className="lb-card" to={`/admin/users/${u.id}`} key={u.id}><b>{u.full_name}</b><div className="sub">{u.email}</div><div className="sub">{u.phone || "No phone"}</div><PlanBadge name={u.plan} color={u.plan_color} text={u.plan_text} /><span className="view-btn">Open details</span></Link>)}</div>
-      {data && data.length === 0 && <p>No users match this search.</p>}
+      {!data && <p>Loading...</p>}
+      <div className="table-wrap desktop-table"><table><thead><tr><th>#</th><th>Name</th><th>Phone</th><th>Plan</th><th>Status</th><th></th></tr></thead><tbody>{rows.map((u, i) => <tr className="click-row" key={u.id} onClick={() => navigate(`/admin/users/${u.id}`)}><td>{i + 1}</td><td><b>{u.full_name}</b><div className="sub"><EmailLink email={u.email} userId={u.id} /></div></td><td>{u.phone || "—"}</td><td><PlanBadge name={u.plan} color={u.plan_color} text={u.plan_text} /></td><td>{u.banned ? "Banned" : (u.paid ? "Paid" : "Unpaid")}</td><td><Link to={`/admin/users/${u.id}`} onClick={(e) => e.stopPropagation()}>Details</Link></td></tr>)}</tbody></table></div>
+      <div className="cards">{rows.map((u) => <div className="lb-card" key={u.id}><b>{u.full_name}</b><div className="sub"><EmailLink email={u.email} userId={u.id} /></div><div className="sub">{u.phone || "No phone"} · {u.banned ? "Banned" : (u.paid ? "Paid" : "Unpaid")}</div><PlanBadge name={u.plan} color={u.plan_color} text={u.plan_text} /><Link className="view-btn" to={`/admin/users/${u.id}`}>Open details</Link></div>)}</div>
+      {data && rows.length === 0 && <p>{q ? "No account found" : "No users match this search."}</p>}
+      <Pager page={data?.page} pages={data?.pages} onPage={(nextPage) => { const next = new URLSearchParams(params); next.set("page", String(nextPage)); setParams(next); }} />
     </>
   );
 }
 
+const slipCache = new Map();
+
 function useAuthImage(src) {
-  const [url, setUrl] = useState("");
+  const [url, setUrl] = useState(() => slipCache.get(src) || "");
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     if (!src) return undefined;
+    const cached = slipCache.get(src);
+    if (cached) {
+      setUrl(cached);
+      setFailed(false);
+      return undefined;
+    }
     let gone = false;
-    let objectUrl = "";
     const headers = src.startsWith("/api/") ? { Authorization: `Token ${token()}` } : {};
     fetch(src, { headers })
       .then((response) => {
@@ -577,16 +715,14 @@ function useAuthImage(src) {
         return response.blob();
       })
       .then((blob) => {
-        objectUrl = URL.createObjectURL(blob);
+        const objectUrl = URL.createObjectURL(blob);
+        slipCache.set(src, objectUrl);
         if (!gone) setUrl(objectUrl);
       })
       .catch(() => {
         if (!gone) setFailed(true);
       });
-    return () => {
-      gone = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
+    return () => { gone = true; };
   }, [src]);
   return { url, failed };
 }
@@ -631,132 +767,313 @@ function paymentDetail(row, kind) {
   return { id: row.id, title, subtitle: row.email, image: row.screenshot, fields, sheet: kind !== "upgrade", kind, pending: row.status !== "approved", reapprove: row.status === "rejected" };
 }
 
-function SlipView({ src, onOpen }) {
-  const { url } = useAuthImage(src);
-  if (!src || !url) return <button type="button" className="view-btn" onClick={onOpen}>View details</button>;
-  return <button type="button" className="slip-thumb" onClick={onOpen}><img src={url} alt="Deposit slip" /></button>;
+function SlipView({ onOpen }) {
+  return <button type="button" className="view-btn" onClick={onOpen}>View slip</button>;
 }
 
-function ProfileTools({ id }) {
+function ProfileTools({ id, banned, flower }) {
+  const toast = useContext(toastContext);
   const [box, setBox] = useState("");
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
   const [password, setPassword] = useState("");
-  const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
-  async function send(path, body) {
+  const messages = {
+    balance_add: (n) => `Balance added successfully — Rs. ${rs(n)}`,
+    balance_sub: (n) => `Balance subtracted successfully — Rs. ${rs(n)}`,
+    flower_add: (n) => `Flower earnings added successfully — Rs. ${rs(n)}`,
+    flower_sub: (n) => `Flower earnings subtracted successfully — Rs. ${rs(n)}`,
+    ban: () => "User banned successfully",
+    unban: () => "User unbanned successfully",
+    password: () => "Password changed successfully",
+  };
+  async function send(path, body, message) {
     setBusy(true);
-    setNote("");
     try {
       await api(path, { method: "POST", body });
       setBox("");
       setAmount("");
       setReason("");
       setPassword("");
-      window.location.reload();
+      toast(message);
+      refreshAdmin();
     } catch (err) {
-      setNote(err.message);
+      toast(err.message || "The action could not be saved.", "error");
     } finally {
       setBusy(false);
     }
   }
+  const actions = [
+    ["balance_add", "Add Balance"],
+    ["balance_sub", "Subtract Balance"],
+    ["flower_add", "Add Flower Earnings"],
+    ["flower_sub", "Subtract Flower Earnings"],
+    ["password", "Change Password"],
+  ];
   return (
     <section className="info-sheet">
       <h2>Profile actions</h2>
+      <p className="sub">Flower earnings Rs {rs(flower || 0)}</p>
       <div className="action-row">
-        {[["balance_add", "Add Balance"], ["balance_sub", "Subtract Balance"], ["flower_add", "Add Flower Earnings"], ["flower_sub", "Subtract Flower Earnings"], ["ban", "Ban User"], ["password", "Change password"]].map(([key, label]) => (
-          <button key={key} type="button" className="btn small" onClick={() => { setBox(key); setNote(""); }}>{label}</button>
+        {actions.map(([key, label]) => (
+          <button key={key} type="button" className="btn small" onClick={() => setBox(key)}>{label}</button>
         ))}
+        {banned ? (
+          <button type="button" className="btn small" disabled={busy} onClick={() => send(`/api/admin/users/${id}/ban`, { action: "unban" }, messages.unban())}>Unban User</button>
+        ) : (
+          <button type="button" className="btn small" onClick={() => setBox("ban")}>Ban User</button>
+        )}
         <button type="button" className="btn small" onClick={async () => {
-          const data = await api(`/api/admin/users/${id}/impersonate`, { method: "POST", body: {} });
-          window.open(`/impersonate?code=${encodeURIComponent(data.code)}`, "_blank", "noopener");
+          try {
+            const data = await api(`/api/admin/users/${id}/impersonate`, { method: "POST", body: {} });
+            window.open(`/impersonate?code=${encodeURIComponent(data.code)}`, "_blank", "noopener");
+          } catch (err) {
+            toast(err.message || "Could not open this user.", "error");
+          }
         }}>Login as User</button>
       </div>
       {box && box !== "ban" && box !== "password" && (
-        <form className="stack" onSubmit={(e) => { e.preventDefault(); send(`/api/admin/users/${id}/adjust`, { kind: box, amount, reason, request_key: `${id}-${box}-${Date.now()}` }); }}>
+        <form className="stack" onSubmit={(e) => { e.preventDefault(); send(`/api/admin/users/${id}/adjust`, { kind: box, amount, reason, request_key: `${id}-${box}-${Date.now()}` }, messages[box](amount)); }}>
           <input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Amount" inputMode="decimal" required />
           <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason" required />
           <button className="btn" disabled={busy} type="submit">Save</button>
         </form>
       )}
-      {box === "ban" && (
-        <form className="stack" onSubmit={(e) => { e.preventDefault(); send(`/api/admin/users/${id}/ban`, { reason }); }}>
+      {box === "ban" && !banned && (
+        <form className="stack" onSubmit={(e) => { e.preventDefault(); send(`/api/admin/users/${id}/ban`, { action: "ban", reason }, messages.ban()); }}>
           <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Ban reason" required />
           <button className="btn" disabled={busy} type="submit">Ban this user</button>
         </form>
       )}
       {box === "password" && (
-        <form className="stack" onSubmit={(e) => { e.preventDefault(); send(`/api/admin/users/${id}/password`, { password }); }}>
+        <form className="stack" onSubmit={(e) => { e.preventDefault(); send(`/api/admin/users/${id}/password`, { password }, messages.password()); }}>
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="New password" required />
           <button className="btn" disabled={busy} type="submit">Update password</button>
         </form>
       )}
-      {note && <p className="sub">{note}</p>}
     </section>
+  );
+}
+
+function TeamRows({ rows }) {
+  const navigate = useNavigate();
+  return (
+    <>
+      <div className="table-wrap desktop-table"><table><thead><tr><th>#</th><th>Name</th><th>Plan</th><th>Date</th><th>Payment</th><th></th></tr></thead><tbody>
+        {rows.map((m, i) => <tr className="click-row" key={m.id} onClick={() => navigate(`/admin/users/${m.id}`)}><td>{i + 1}</td><td><b>{m.full_name}</b><div className="sub"><EmailLink email={m.email} userId={m.id} /></div></td><td><PlanBadge name={m.plan} color={m.plan_color} text={m.plan_text} /></td><td>{whenText(m.date)}</td><td>{m.paid ? "Paid" : "Unpaid"}</td><td><Link to={`/admin/users/${m.id}`} onClick={(e) => e.stopPropagation()}>Details</Link></td></tr>)}
+      </tbody></table></div>
+      <div className="cards">{rows.map((m) => <div className="lb-card" key={m.id}><b>{m.full_name}</b><div className="sub"><EmailLink email={m.email} userId={m.id} /></div><PlanBadge name={m.plan} color={m.plan_color} text={m.plan_text} /><div className="sub">{m.paid ? "Paid" : "Unpaid"} · {whenText(m.date)}</div><Link className="view-btn" to={`/admin/users/${m.id}`}>Open details</Link></div>)}</div>
+    </>
   );
 }
 
 export function UserDetail() {
   const { id } = useParams();
-  const navigate = useNavigate();
   const data = useLoad(`/api/admin/users/${id}`);
   const [detail, setDetail] = useState(null);
-  const [txQuery, setTxQuery] = useState("");
+  const [slipsOpen, setSlipsOpen] = useState(false);
   if (!data) return <p>Loading...</p>;
-  const openDeposit = (d) => setDetail(paymentDetail({ ...d, full_name: data.user.full_name, email: data.user.email, username: data.user.username, phone: data.user.phone, upliner: data.upliner }, "deposit"));
-  const openUpgrade = (d) => setDetail(paymentDetail({ ...d, full_name: data.user.full_name, email: data.user.email, plan: d.to_plan }, "upgrade"));
+  const openDeposit = (d) => setDetail({ ...paymentDetail({ ...d, full_name: data.user.full_name, email: data.user.email, username: data.user.username, phone: data.user.phone, upliner: data.upliner }, "deposit"), userId: data.user.id, pending: false });
   const profile = data.profile || {};
-  const parts = String(profile.full_name || data.user.full_name || "").split(" ");
-  const referral = `${window.location.origin}/register?ref=${profile.referral_code || ""}`;
-  const copyCode = () => navigator.clipboard.writeText(referral);
+  const banned = profile.banned || profile.status === "banned";
+  const slips = data.deposits || [];
+  const team = data.team || [];
   return (
     <>
       <Link className="back-link" to="/admin/users?status=all">← Users</Link>
       <h1>User profile</h1>
-      <p className="sub">{data.user.full_name} · {data.user.email}</p>
-      <div className="profile-layout">
-        <div className="profile-board">
-          <a className="profile-card balance" href="#user-history"><span>Current Balance</span><b>Rs {rs(profile.balance || data.user.balance)}</b><em>History</em></a>
-          <a className="profile-card deposits" href="#user-slips"><span>Total Deposit</span><b>Rs {rs(profile.deposits || 0)}</b><em>Slips</em></a>
-          <a className="profile-card withdrawals" href="#user-history"><span>Total Withdraw</span><b>Rs {rs(profile.withdrawals || 0)}</b><em>History</em></a>
-          <a className="profile-card tx" href="#user-history"><span>Transactions</span><b>{Number(profile.transactions || 0).toLocaleString("en-US")}</b><em>This user</em></a>
-        </div>
-        <section className="info-sheet">
-          <h2>User information</h2>
-          <div><span>First name</span><b>{profile.first_name || parts[0] || "—"}</b></div>
-          <div><span>Last name</span><b>{profile.last_name || parts.slice(1).join(" ") || "—"}</b></div>
-          <div><span>Email</span><b>{profile.email || data.user.email}</b></div>
-          <div><span>Mobile number</span><b>{profile.phone || data.user.phone || "—"}</b></div>
-          <div><span>Current level</span><b>Level {profile.level ?? data.user.level}</b></div>
-          <div><span>Total approved team</span><b>{data.team.filter((m) => m.paid).length}</b></div>
-          <div><span>Purchased plan</span><b>{data.user.plan || "No plan"}</b></div>
-          <div><span>Upliner</span><b>{data.upliner ? <Link to={`/admin/users/${data.upliner.id}`}>{data.upliner.full_name} · {data.upliner.email}</Link> : "Joined directly"}</b></div>
-          <div><span>Flower earnings</span><b>Rs {rs(profile.flower_balance || 0)}</b></div>
-          {profile.status === "banned" && <div><span>Ban reason</span><b>{profile.ban_reason || "Banned"}</b></div>}
-        </section>
-        <ProfileTools id={id} />
+      <p className="sub">{profile.full_name || data.user.full_name}</p>
+      {banned && <div className="ban-banner">Banned account{profile.ban_reason ? ` — ${profile.ban_reason}` : ""}</div>}
+      <div className="profile-board">
+        <div className="profile-card balance"><span>Current Balance</span><b>Rs {rs(profile.balance || data.user.balance)}</b><em>Wallet</em></div>
+        <button type="button" className="profile-card deposits" onClick={() => setSlipsOpen(true)}><span>Total Deposit</span><b>Rs {rs(profile.deposits || 0)}</b><em>Open slips</em></button>
+        <Link className="profile-card withdrawals" to={`/admin/users/${id}/withdrawals`}><span>Total Withdraw</span><b>Rs {rs(profile.withdrawals || 0)}</b><em>History</em></Link>
+        <Link className="profile-card tx" to={`/admin/users/${id}/transactions`}><span>Transactions</span><b>{Number(profile.transactions || 0).toLocaleString("en-US")}</b><em>Full history</em></Link>
       </div>
-      <section className="stat upliner-panel">
-        <div className="sub">Upliner</div>
-        {data.upliner ? <Link to={`/admin/users/${data.upliner.id}`}><b>{data.upliner.full_name}</b><div className="sub">{data.upliner.email} · {data.upliner.phone || "No phone"} · {data.upliner.plan || "No plan"} · Level {data.upliner.level}</div></Link> : <b>No upliner. This account joined directly.</b>}
+      <ProfileTools id={id} banned={banned} flower={profile.flower_balance} />
+      <section className="info-sheet">
+        <h2>User information</h2>
+        <div><span>Name</span><b>{profile.full_name || data.user.full_name || "—"}</b></div>
+        <div><span>Email</span><b className="break">{profile.email || data.user.email}</b></div>
+        <div><span>Mobile number</span><b>{profile.phone || data.user.phone || "—"}</b></div>
+        <div><span>Current level</span><b>Level {profile.level ?? data.user.level}</b></div>
+        <div><span>Approved team</span><b>{profile.approved_team ?? profile.paid_team ?? 0}</b></div>
+        <div><span>Current plan</span><b>{profile.plan || data.user.plan || "No plan"}</b></div>
       </section>
-      <h2 id="user-slips">Deposit slips</h2>
-      <div className="table-wrap desktop-table"><table><thead><tr><th>Plan</th><th>Amount</th><th>Method</th><th>Sender</th><th>Slip</th><th>Status</th></tr></thead><tbody>
-        {(data.deposits || []).map((d) => <tr key={d.id}><td>{d.plan || "—"}</td><td>Rs {d.amount}</td><td>{d.method || "—"}</td><td>{d.sender || "—"}</td><td><SlipView src={d.screenshot} onOpen={() => openDeposit(d)} /></td><td>{d.status}</td></tr>)}
-      </tbody></table></div>
-      <div className="cards">{(data.deposits || []).map((d) => <button className="lb-card tap" type="button" key={d.id} onClick={() => openDeposit(d)}><b>{d.plan || "Plan"} · Rs {d.amount}</b><div className="sub">{d.method} · {d.sender || "No sender"} · {d.status}</div><span className="view-btn">Open slip</span></button>)}</div>
-      {(data.deposits || []).length === 0 && <p>No deposit yet.</p>}
-      <h2>Team</h2>
-      <div className="team-counts"><span>Paid users {data.team.filter((m) => m.paid).length}</span><span>Unpaid users {data.team.filter((m) => !m.paid).length}</span></div>
-      <div className="table-wrap desktop-table"><table><thead><tr><th>#</th><th>Name</th><th>Plan</th><th>Date</th><th>Payment Status</th><th>Details</th></tr></thead><tbody>
-        {data.team.map((m, i) => <tr className="click-row" key={m.id} onClick={() => navigate(`/admin/users/${m.id}`)}><td>{i + 1}</td><td><b>{m.full_name}</b><div className="sub">{m.email}</div></td><td><PlanBadge name={m.plan} color={m.plan_color} text={m.plan_text} /></td><td>{new Date(m.date).toLocaleDateString()}<div className="sub">{new Date(m.date).toLocaleTimeString()}</div></td><td><span className="badge" style={{ background: m.paid ? "#d1fae5" : "#fff3cd", color: m.paid ? "#065f46" : "#856404" }}>{m.paid ? "Paid" : "Unpaid"}</span></td><td><Link to={`/admin/users/${m.id}`} onClick={(e) => e.stopPropagation()}>Details</Link></td></tr>)}
-      </tbody></table></div>
-      <div className="cards">{data.team.map((m) => <Link className="lb-card" to={`/admin/users/${m.id}`} key={m.id}><b>{m.full_name}</b><div className="sub">{m.email}</div><PlanBadge name={m.plan} color={m.plan_color} text={m.plan_text} /><div className="sub">{m.paid ? "Paid" : "Unpaid"}</div><span className="view-btn">Open details</span></Link>)}</div>
-      {data.team.length === 0 && <p>No team members yet.</p>}
-      <h2 id="user-history">Transactions</h2>
-      <input value={txQuery} onChange={(e) => setTxQuery(e.target.value)} placeholder="Search this user's history" />
-      <div className="table-wrap"><table><tbody>{data.transactions.filter((t) => `${t.title} ${t.source_email || ""} ${t.remark || ""}`.toLowerCase().includes(txQuery.toLowerCase())).map((t) => <tr key={t.id}><td><b>{t.title}</b><div className="sub">{t.remark || "entry"} · {t.source_email || "—"}</div></td><td>Rs {t.amount}</td></tr>)}</tbody></table></div>
+      <section className="info-sheet">
+        <h2>Upline information</h2>
+        {data.upliner ? (
+          <>
+            <div><span>Name</span><b>{data.upliner.full_name}</b></div>
+            <div><span>Email</span><b><EmailLink email={data.upliner.email} userId={data.upliner.id} /></b></div>
+            <div><span>Plan</span><b>{data.upliner.plan || "No plan"} · Level {data.upliner.level}</b></div>
+          </>
+        ) : <p>This account joined directly.</p>}
+      </section>
+      <section className="info-sheet" id="user-slips">
+        <h2>Deposit slip</h2>
+        {slips.length === 0 && <p>No deposit yet.</p>}
+        {slips.map((d) => (
+          <div key={d.id}>
+            <span>{d.plan || "Plan"} · Rs {d.amount}</span>
+            <b>{d.status} · {d.method || "—"} <button type="button" className="view-btn" onClick={() => openDeposit(d)}>Open slip</button></b>
+          </div>
+        ))}
+      </section>
+      <section>
+        <h2>Team information</h2>
+        <div className="team-counts">
+          <Link to={`/admin/users/${id}/team?paid=1`}>Paid users {profile.paid_team ?? 0}</Link>
+          <Link to={`/admin/users/${id}/team?paid=0`}>Unpaid users {profile.unpaid_team ?? 0}</Link>
+        </div>
+        <TeamRows rows={team} />
+        {team.length === 0 && <p>No team members yet.</p>}
+        <Link className="btn small view-all" to={`/admin/users/${id}/team`}>View all team</Link>
+      </section>
+      {slipsOpen && (
+        <div className="modal-back" onClick={() => setSlipsOpen(false)}>
+          <div className="modal-card" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-head">
+              <div><h2>Total deposit</h2><p className="sub">Rs {rs(profile.deposits || 0)}</p></div>
+              <button className="modal-x" type="button" onClick={() => setSlipsOpen(false)} aria-label="Close">×</button>
+            </div>
+            {slips.length === 0 && <p>No deposit slip yet.</p>}
+            <div className="same-list">
+              {slips.map((d) => <button type="button" key={d.id} onClick={() => openDeposit(d)}><b>Rs {d.amount}</b><span>{d.plan || "Plan"} · {d.method || "—"} · {d.sender || "No sender"} · {d.status}</span></button>)}
+            </div>
+          </div>
+        </div>
+      )}
       {detail && <DetailModal detail={detail} onClose={() => setDetail(null)} onAction={() => setDetail(null)} />}
+    </>
+  );
+}
+
+export function UserTransactions() {
+  const { id } = useParams();
+  const [params, setParams] = useSearchParams();
+  const category = params.get("category") || "";
+  const day = params.get("date") || "";
+  const start = params.get("start") || "";
+  const end = params.get("end") || "";
+  const q = params.get("q") || "";
+  const page = params.get("page") || "1";
+  const data = useLoad(`/api/admin/users/${id}/transactions?category=${encodeURIComponent(category)}&date=${encodeURIComponent(day)}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&q=${encodeURIComponent(q)}&page=${page}`);
+  const rows = rowsOf(data);
+  const setQuery = (patch) => {
+    const next = new URLSearchParams(params);
+    Object.entries(patch).forEach(([key, value]) => { if (value) next.set(key, value); else next.delete(key); });
+    if (!("page" in patch)) next.delete("page");
+    setParams(next);
+  };
+  const filters = [
+    ["", "All"],
+    ["overall", "Overall Earnings"],
+    ["ads_earn", "Ads Earnings"],
+    ["task", "Task Earnings"],
+    ["flower", "Flower Earnings"],
+    ["balance_add", "Balance Add"],
+    ["balance_sub", "Balance Subtract"],
+    ["direct", "Direct Referral Commission"],
+    ["indirect_1", "Indirect Traffic Commission — Level 1"],
+    ["indirect_2", "Indirect Traffic Commission — Level 2"],
+  ];
+  return (
+    <>
+      <Link className="back-link" to={`/admin/users/${id}`}>← Profile</Link>
+      <h1>Transactions</h1>
+      {!data && <p>Loading...</p>}
+      <div className="stat"><div className="sub">Filtered total</div><h2>Rs {rs(data?.total || 0)}</h2><span>{Number(data?.count || 0).toLocaleString("en-US")} records</span></div>
+      <div className="filters">{filters.map(([value, label]) => <button key={label} type="button" className={category === value ? "chip on" : "chip"} onClick={() => setQuery({ category: value })}>{label}</button>)}</div>
+      <SearchBox value={q} placeholder="Search title or related email" onSearch={(value) => setQuery({ q: value })} />
+      <div className="filters">
+        <input type="date" value={start} aria-label="From date" onChange={(e) => setQuery({ start: e.target.value, date: "" })} />
+        <input type="date" value={end} aria-label="To date" onChange={(e) => setQuery({ end: e.target.value, date: "" })} />
+        <input type="date" value={day} aria-label="One date" onChange={(e) => setQuery({ date: e.target.value, start: "", end: "" })} />
+      </div>
+      <div className="table-wrap desktop-table"><table><thead><tr><th>Detail</th><th>Amount</th><th>When</th></tr></thead><tbody>
+        {rows.map((t) => <tr key={t.id}><td><b>{t.title}</b><div className="sub">{t.trx_type === "-" ? "Debit" : "Credit"} · {t.remark || "entry"}{t.plan_name ? ` · ${t.plan_name}` : ""}</div><div className="sub">User <EmailLink email={t.user_email} userId={t.user_id} /></div>{t.source_email && <div className="sub">Related <EmailLink email={t.source_email} userId={t.source_user_id} /></div>}</td><td>Rs {t.amount}</td><td>{whenText(t.created_at)}</td></tr>)}
+      </tbody></table></div>
+      <div className="cards">{rows.map((t) => <div className="lb-card" key={t.id}><b>{t.title}</b><div>Rs {t.amount} · {t.trx_type === "-" ? "Debit" : "Credit"}</div><div className="sub">{whenText(t.created_at)}</div><div className="sub"><EmailLink email={t.user_email} userId={t.user_id} /></div>{t.source_email && <div className="sub">Related <EmailLink email={t.source_email} userId={t.source_user_id} /></div>}</div>)}</div>
+      {data && rows.length === 0 && <p>No records for this filter.</p>}
+      <Pager page={data?.page} pages={data?.pages} onPage={(nextPage) => setQuery({ page: String(nextPage), q, category, date: day, start, end })} />
+    </>
+  );
+}
+
+export function UserWithdrawals() {
+  const { id } = useParams();
+  const [params, setParams] = useSearchParams();
+  const q = params.get("q") || "";
+  const start = params.get("start") || "";
+  const end = params.get("end") || "";
+  const day = params.get("date") || "";
+  const page = params.get("page") || "1";
+  const data = useLoad(`/api/admin/users/${id}/withdrawals?q=${encodeURIComponent(q)}&start=${start}&end=${end}&date=${day}&page=${page}`);
+  const rows = rowsOf(data);
+  const setQuery = (patch) => {
+    const next = new URLSearchParams(params);
+    Object.entries(patch).forEach(([key, value]) => { if (value) next.set(key, value); else next.delete(key); });
+    if (!("page" in patch)) next.delete("page");
+    setParams(next);
+  };
+  return (
+    <>
+      <Link className="back-link" to={`/admin/users/${id}`}>← Profile</Link>
+      <h1>Withdrawal history</h1>
+      <SearchBox value={q} placeholder="Search account number" onSearch={(value) => setQuery({ q: value })} />
+      <div className="filters">
+        <input type="date" value={start} aria-label="From date" onChange={(e) => setQuery({ start: e.target.value, date: "" })} />
+        <input type="date" value={end} aria-label="To date" onChange={(e) => setQuery({ end: e.target.value, date: "" })} />
+        <input type="date" value={day} aria-label="One date" onChange={(e) => setQuery({ date: e.target.value, start: "", end: "" })} />
+      </div>
+      {!data && <p>Loading...</p>}
+      <div className="table-wrap desktop-table"><table><thead><tr><th>Amount</th><th>Account</th><th>Status</th><th>Date</th></tr></thead><tbody>
+        {rows.map((row) => <tr key={row.id}><td>Rs {row.amount}</td><td>{row.method}<div className="sub">{row.account_name || "—"} · {row.account || "—"}</div></td><td>{row.status}</td><td>{whenText(row.created_at)}</td></tr>)}
+      </tbody></table></div>
+      <div className="cards">{rows.map((row) => <div className="lb-card" key={row.id}><b>Rs {row.amount}</b><div className="sub">{row.method} · {row.account || "—"}</div><div className="sub">{row.account_name || "No name"} · {row.status}</div><div className="sub">{whenText(row.created_at)}</div></div>)}</div>
+      {data && rows.length === 0 && <p>{q ? "No account found" : "No withdrawal for this filter."}</p>}
+      <Pager page={data?.page} pages={data?.pages} onPage={(nextPage) => setQuery({ page: String(nextPage), q, start, end, date: day })} />
+    </>
+  );
+}
+
+export function UserTeam() {
+  const { id } = useParams();
+  const [params, setParams] = useSearchParams();
+  const q = params.get("q") || "";
+  const paid = params.get("paid") || "";
+  const plan = params.get("plan") || "";
+  const approved = params.get("approved") || "";
+  const rejected = params.get("rejected") || "";
+  const page = params.get("page") || "1";
+  const data = useLoad(`/api/admin/users/${id}/team?q=${encodeURIComponent(q)}&paid=${paid}&plan=${encodeURIComponent(plan)}&approved=${approved}&rejected=${rejected}&page=${page}`);
+  const rows = rowsOf(data);
+  const setQuery = (patch) => {
+    const next = new URLSearchParams(params);
+    Object.entries(patch).forEach(([key, value]) => { if (value) next.set(key, value); else next.delete(key); });
+    if (!("page" in patch)) next.delete("page");
+    setParams(next);
+  };
+  return (
+    <>
+      <Link className="back-link" to={`/admin/users/${id}`}>← Profile</Link>
+      <h1>Team</h1>
+      <div className="team-counts">
+        <button type="button" className={paid === "" ? "chip on" : "chip"} onClick={() => setQuery({ paid: "" })}>All {data?.total ?? ""}</button>
+        <button type="button" className={paid === "1" ? "chip on" : "chip"} onClick={() => setQuery({ paid: "1" })}>Paid {data?.paid ?? 0}</button>
+        <button type="button" className={paid === "0" ? "chip on" : "chip"} onClick={() => setQuery({ paid: "0" })}>Unpaid {data?.unpaid ?? 0}</button>
+        {(data?.plans || []).map((item) => <button type="button" key={item.name} className={plan === (item.name === "No plan" ? "none" : item.name) ? "chip on" : "chip"} onClick={() => setQuery({ plan: item.name === "No plan" ? "none" : item.name })}>{item.name} {item.count}</button>)}
+      </div>
+      <SearchBox value={q} placeholder="Search team email" suggestPath={`/api/admin/users/${id}/team`} onSearch={(value) => setQuery({ q: value })} onPick={(row) => setQuery({ q: row.email })} />
+      <div className="filters">
+        <label>Approval date <input type="date" value={approved} onChange={(e) => setQuery({ approved: e.target.value })} /></label>
+        <label>Rejection date <input type="date" value={rejected} onChange={(e) => setQuery({ rejected: e.target.value })} /></label>
+      </div>
+      {!data && <p>Loading...</p>}
+      <TeamRows rows={rows} />
+      {data && rows.length === 0 && <p>{q ? "No account found" : "No team members for this filter."}</p>}
+      <Pager page={data?.page} pages={data?.pages} onPage={(nextPage) => setQuery({ page: String(nextPage), q, paid, plan, approved, rejected })} />
     </>
   );
 }
@@ -778,9 +1095,9 @@ export function Leaderboard() {
         <select value={sort} onChange={(e) => setSort(e.target.value)}><option value="earnings">Earnings high to low</option><option value="level">Level high to low</option></select>
       </div>
       <div className="table-wrap desktop-table"><table><thead><tr><th>#</th><th>Name</th><th>Approved team</th><th>Level</th><th>Earnings</th><th>Details</th></tr></thead><tbody>
-        {rows.map((u, i) => <tr className="click-row" key={u.id} onClick={() => navigate(`/admin/users/${u.id}`)}><td>{i + 1}</td><td><Link to={`/admin/users/${u.id}`} onClick={(e) => e.stopPropagation()}><b>{u.full_name}</b></Link><div className="sub">{u.email}</div></td><td>{u.active_team}</td><td>Level {u.level}</td><td>Rs {u.earnings}</td><td><Link to={`/admin/users/${u.id}`} onClick={(e) => e.stopPropagation()}>View details</Link></td></tr>)}
+        {rows.map((u, i) => <tr className="click-row" key={u.id} onClick={() => navigate(`/admin/users/${u.id}`)}><td>{i + 1}</td><td><Link to={`/admin/users/${u.id}`} onClick={(e) => e.stopPropagation()}><b>{u.full_name}</b></Link><div className="sub"><EmailLink email={u.email} userId={u.id} /></div></td><td>{u.active_team}</td><td>Level {u.level}</td><td>Rs {u.earnings}</td><td><Link to={`/admin/users/${u.id}`} onClick={(e) => e.stopPropagation()}>View details</Link></td></tr>)}
       </tbody></table></div>
-      <div className="cards">{rows.map((u, i) => <Link className="lb-card" to={`/admin/users/${u.id}`} key={u.id}><b>#{i + 1} {u.full_name}</b><div className="sub">{u.email}</div><div>Approved team {u.active_team} · Level {u.level}</div><div>Rs {u.earnings}</div><span className="view-btn">View details</span></Link>)}</div>
+      <div className="cards">{rows.map((u, i) => <div className="lb-card" key={u.id}><b>#{i + 1} {u.full_name}</b><div className="sub"><EmailLink email={u.email} userId={u.id} /></div><div>Approved team {u.active_team} · Level {u.level}</div><div>Rs {u.earnings}</div><Link className="view-btn" to={`/admin/users/${u.id}`}>View details</Link></div>)}</div>
     </>
   );
 }
@@ -789,31 +1106,72 @@ export function Referrals() {
   const data = useLoad("/api/admin/levels");
   const [form, setForm] = useState(null);
   const [note, setNote] = useState("");
+  const toast = useContext(toastContext);
   useEffect(() => { if (data && !form) setForm({ direct_label: data.direct_label || "", level2_label: data.level2_label || "", level3_label: data.level3_label || "", direct_percent: data.direct || "", level2_percent: data.level2 || "", level3_percent: data.level3 || "" }); }, [data]);
   if (!form) return <p>Loading...</p>;
-  const save = (e) => { e.preventDefault(); api("/api/admin/levels/save", { method: "POST", body: form }).then(() => setNote("Saved for future commissions. Older commission records stay unchanged.")).catch((err) => setNote(err.message)); };
+  const save = (e) => { e.preventDefault(); api("/api/admin/levels/save", { method: "POST", body: form }).then(() => { setNote("Saved for future commissions. Older commission records stay unchanged."); toast("Referral rates saved successfully"); }).catch((err) => { setNote(err.message); toast(err.message, "error"); }); };
   return <><h1>Referral Commissions</h1><p className="sub">Current direct {data.direct}% · Level 2 {data.level2}% · Level 3 {data.level3}%. Saving changes future calculations only.</p><form className="stack stat" onSubmit={save}><input value={form.direct_label} onChange={(e) => setForm({ ...form, direct_label: e.target.value })} placeholder="Direct label" /><input value={form.direct_percent} onChange={(e) => setForm({ ...form, direct_percent: e.target.value })} placeholder="Direct percent" /><input value={form.level2_label} onChange={(e) => setForm({ ...form, level2_label: e.target.value })} placeholder="Level 2 label" /><input value={form.level2_percent} onChange={(e) => setForm({ ...form, level2_percent: e.target.value })} placeholder="Level 2 percent" /><input value={form.level3_label} onChange={(e) => setForm({ ...form, level3_label: e.target.value })} placeholder="Level 3 label" /><input value={form.level3_percent} onChange={(e) => setForm({ ...form, level3_percent: e.target.value })} placeholder="Level 3 percent" /><button className="btn">Save future rates</button>{note && <p>{note}</p>}</form></>;
+}
+
+function actionMessage(kind, action) {
+  if (kind === "withdraw" && action === "approve") return "Withdrawal approved successfully";
+  if (kind === "withdraw" && action === "reject") return "Withdrawal rejected successfully";
+  if (kind === "upgrade" && action === "approve") return "Upgrade approved successfully";
+  if (kind === "upgrade" && action === "reject") return "Upgrade rejected";
+  if (action === "approve") return "Account approved successfully";
+  if (action === "reject") return "Account rejected";
+  return "Saved successfully";
 }
 
 function MoneyList({ path, actionPath, kind = "deposit" }) {
   const [rows, setRows] = useState([]);
+  const [ready, setReady] = useState(false);
+  const [meta, setMeta] = useState({ page: 1, pages: 1 });
   const [detail, setDetail] = useState(null);
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
+  const toast = useContext(toastContext);
   const q = params.get("q") || "";
   const fullPath = path.includes("q=") ? path : `${path}${path.includes("?") ? "&" : "?"}q=${encodeURIComponent(q)}`;
   const refreshCounts = useContext(refreshCountsContext);
-  const load = () => api(fullPath).then(setRows).catch(() => setRows([]));
-  useEffect(() => { load(); }, [fullPath]);
-  const act = (id, action, extra = {}) => api(`${actionPath}/${id}`, { method: "POST", body: { action, reason: extra.reason || "", pay_commission: extra.pay_commission ? "yes" : "no" } }).then(() => { setDetail(null); load(); refreshCounts(); }).catch((err) => window.alert(err.message));
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const bump = () => setTick((value) => value + 1);
+    window.addEventListener("admin-data-refresh", bump);
+    return () => window.removeEventListener("admin-data-refresh", bump);
+  }, []);
+  useEffect(() => {
+    let live = true;
+    const ctrl = new AbortController();
+    setRows([]);
+    setReady(false);
+    api(fullPath, { signal: ctrl.signal }).then((payload) => {
+      if (!live) return;
+      const next = rowsOf(payload);
+      setRows(next);
+      setMeta({ page: payload.page || 1, pages: payload.pages || 1 });
+      setReady(true);
+    }).catch((err) => {
+      if (!live || err.name === "AbortError") return;
+      setRows([]);
+      setReady(true);
+    });
+    return () => { live = false; ctrl.abort(); };
+  }, [fullPath, tick]);
+  const act = (id, action, extra = {}) => api(`${actionPath}/${id}`, { method: "POST", body: { action, reason: extra.reason || "", pay_commission: extra.pay_commission ? "yes" : "no" } }).then(() => {
+    setDetail(null);
+    refreshCounts();
+    refreshAdmin();
+    toast(actionMessage(kind, action));
+  }).catch((err) => toast(err.message || "The action could not be saved.", "error"));
   const actions = (row) => row.status === "approved"
     ? <span className="badge" style={{ background: "#d1fae5", color: "#065f46" }}>approved</span>
     : row.status === "rejected"
       ? (kind === "deposit" ? <button className="btn small" onClick={() => act(row.id, "approve")}>Re-Approve</button> : <span className="badge" style={{ background: "#fee2e2", color: "#991b1b" }}>rejected</span>)
       : <div className="row-actions"><button className="btn small" onClick={() => act(row.id, "approve", { pay_commission: kind === "upgrade" && window.confirm("Credit 20% of the additional payment to the direct upliner?") })}>Approve</button><button className="btn ghost small" onClick={() => { const reason = window.prompt("Rejection reason"); if (reason) act(row.id, "reject", { reason }); }}>Reject</button></div>;
-  const who = (row) => <td><Link to={row.user_id ? `/admin/users/${row.user_id}` : "/admin/users"}><b>{row.full_name}</b></Link><div className="sub">{row.email}</div>{row.upliner && <div className="sub">Upliner: {row.upliner.full_name}</div>}</td>;
+  const who = (row) => <td><Link to={row.user_id ? `/admin/users/${row.user_id}` : "/admin/users"}><b>{row.full_name}</b></Link><div className="sub"><EmailLink email={row.email} userId={row.user_id} /></div>{row.upliner && <div className="sub">Upliner: <EmailLink email={row.upliner.email} userId={row.upliner.id} /></div>}</td>;
   const openRow = (row) => {
     const base = paymentDetail(row, kind);
-    setDetail({ ...base, review: kind !== "upgrade", upliner: row.upliner || null, loading: Boolean(row.user_id) || kind === "withdraw" });
+      setDetail({ ...base, userId: row.user_id, review: kind !== "upgrade", upliner: row.upliner || null, loading: Boolean(row.user_id) || kind === "withdraw" });
     const extraJob = kind === "withdraw" ? api(`/api/admin/withdrawals/${row.id}`) : Promise.resolve(null);
     const userJob = Promise.resolve(null);
     Promise.all([extraJob, userJob]).then(([extra, userData]) => {
@@ -864,35 +1222,37 @@ function MoneyList({ path, actionPath, kind = "deposit" }) {
       <div className="cards">{rows.map((row) => (
         <div className="lb-card" key={row.id}>
           <b>{row.full_name}</b>
-          <div className="sub">{row.email}</div>
+          <div className="sub"><EmailLink email={row.email} userId={row.user_id} /></div>
           {row.upliner && <div className="sub">Upliner: {row.upliner.full_name}</div>}
           <div className="sub">{kind === "upgrade" ? `${row.from_plan} → ${row.to_plan}` : (row.plan || row.method)} · Rs {row.amount}{row.sender ? ` · ${row.sender}` : ""}{row.account_name ? ` · ${row.account_name}` : ""}{row.account ? ` · ${row.account}` : ""}</div>
           <button className="view-btn" type="button" onClick={() => openRow(row)}>Open details</button>
           {actions(row)}
         </div>
       ))}</div>
-      {rows.length === 0 && <p className="empty">Nothing waiting in this list.</p>}
+      {!ready && <p>Loading...</p>}
+      {ready && rows.length === 0 && <p className="empty">{q ? "No account found" : "Nothing waiting in this list."}</p>}
+      <Pager page={meta.page} pages={meta.pages} onPage={(nextPage) => { const next = new URLSearchParams(params); next.set("page", String(nextPage)); setParams(next); }} />
       {detail && <DetailModal detail={detail} onClose={() => setDetail(null)} onAction={act} />}
     </>
   );
 }
 
-function QueueFilters({ param = "slip" }) {
+function QueueFilters({ param = "slip", suggest }) {
   const [params, setParams] = useSearchParams();
   const status = params.get(param) || "pending";
   const q = params.get("q") || "";
+  const commit = (value) => {
+    const next = new URLSearchParams(params);
+    if (value) next.set("q", value); else next.delete("q");
+    next.delete("page");
+    setParams(next);
+  };
   return (
     <>
-      <form className="search-row" onSubmit={(e) => e.preventDefault()}>
-        <input value={q} placeholder="Search name, email, or sender number" onChange={(e) => {
-          const next = new URLSearchParams(params);
-          if (e.target.value) next.set("q", e.target.value); else next.delete("q");
-          setParams(next);
-        }} />
-      </form>
+      <SearchBox value={q} placeholder="Search by full email" suggestPath={suggest} onSearch={commit} onPick={(row) => commit(row.email)} />
       <div className="filters">
         {[["pending", "Pending"], ["approved", "Approved"], ["rejected", "Rejected"], ["all", "All"]].map(([value, label]) => (
-          <button key={value} type="button" className={status === value ? "chip on" : "chip"} onClick={() => { const next = new URLSearchParams(params); next.set(param, value); setParams(next); }}>{label}</button>
+          <button key={value} type="button" className={status === value ? "chip on" : "chip"} onClick={() => { const next = new URLSearchParams(params); next.set(param, value); next.delete("page"); setParams(next); }}>{label}</button>
         ))}
       </div>
     </>
@@ -902,8 +1262,9 @@ function QueueFilters({ param = "slip" }) {
 export function Deposits() {
   const [params] = useSearchParams();
   const status = params.get("slip") || "pending";
+  const page = params.get("page") || "1";
   const today = params.get("today") === "1" ? "&today=1" : "";
-  return <><h1>{today ? "Today Received Balance" : "New user Request"}</h1><QueueFilters /><MoneyList path={`/api/admin/deposits?status=${status}${today}`} actionPath="/api/admin/deposits" /></>;
+  return <><h1>{today ? "Today Received Balance" : "New user Request"}</h1><QueueFilters suggest={`/api/admin/deposits?status=${status}${today}`} /><MoneyList path={`/api/admin/deposits?status=${status}${today}&page=${page}`} actionPath="/api/admin/deposits" /></>;
 }
 export function TodayUsers() {
   const [q, setQ] = useState("");
@@ -911,8 +1272,12 @@ export function TodayUsers() {
   const [plan, setPlan] = useState("");
   const [data, setData] = useState(null);
   const [detail, setDetail] = useState(null);
-  const load = () => api(`/api/admin/today-approved?q=${encodeURIComponent(q)}&date=${day}&plan=${encodeURIComponent(plan)}`).then(setData);
-  useEffect(() => { load(); }, [q, day, plan]);
+  useEffect(() => {
+    let live = true;
+    const ctrl = new AbortController();
+    api(`/api/admin/today-approved?q=${encodeURIComponent(q)}&date=${day}&plan=${encodeURIComponent(plan)}`, { signal: ctrl.signal }).then((next) => { if (live) setData(next); }).catch(() => { if (live) setData(null); });
+    return () => { live = false; ctrl.abort(); };
+  }, [q, day, plan]);
   if (!data) return <p>Loading...</p>;
   return (
     <>
@@ -923,13 +1288,13 @@ export function TodayUsers() {
         <div className="stat"><div className="sub">Today Approved User Count</div><h2>{data.users}</h2></div>
         {(data.plans || []).map((item) => <div className="stat" key={item.name}><div className="sub">{item.name}</div><h2>{item.count}</h2></div>)}
       </div>
+      <SearchBox value={q} placeholder="Search by full email" suggestPath="/api/admin/users?status=approved" onSearch={setQ} onPick={(row) => setQ(row.email)} />
       <div className="filters">
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Name, username, or email" />
         <input type="date" value={day || data.date || ""} onChange={(e) => setDay(e.target.value)} />
         <select value={plan} onChange={(e) => setPlan(e.target.value)}><option value="">All plans</option>{["Basic", "Gold", "Standard", "Premium", "Super Premium"].map((name) => <option key={name}>{name}</option>)}</select>
       </div>
-      <div className="table-wrap"><table><tbody>{(data.rows || []).map((row) => <tr key={row.id}><td><Link to={`/admin/users/${row.user_id}`}><b>{row.full_name}</b></Link><div className="sub">{row.email}</div></td><td>{row.plan}<div className="sub">Rs {row.amount}</div><div className="sub">Submitted {String(row.created_at || "").slice(0, 10)}</div></td><td><button className="view-btn" type="button" onClick={() => setDetail(paymentDetail({ ...row, status: "approved" }, "deposit"))}>View detail</button></td></tr>)}</tbody></table></div>
-      {(data.rows || []).length === 0 && <p>0 users for this filter.</p>}
+      <div className="table-wrap"><table><tbody>{(data.rows || []).map((row) => <tr key={row.id}><td><Link to={`/admin/users/${row.user_id}`}><b>{row.full_name}</b></Link><div className="sub"><EmailLink email={row.email} userId={row.user_id} /></div></td><td>{row.plan}<div className="sub">Rs {row.amount}</div><div className="sub">Submitted {String(row.created_at || "").slice(0, 10)}</div></td><td><button className="view-btn" type="button" onClick={() => setDetail({ ...paymentDetail({ ...row, status: "approved" }, "deposit"), userId: row.user_id, pending: false })}>View detail</button></td></tr>)}</tbody></table></div>
+      {(data.rows || []).length === 0 && <p>{q ? "No account found" : "0 users for this filter."}</p>}
       {detail && <DetailModal detail={{ ...detail, pending: false }} onClose={() => setDetail(null)} onAction={() => setDetail(null)} />}
     </>
   );
@@ -937,70 +1302,112 @@ export function TodayUsers() {
 export function Withdrawals() {
   const [params] = useSearchParams();
   const status = params.get("wstatus") || "pending";
+  const page = params.get("page") || "1";
+  const totals = useLoad("/api/admin/withdrawals/summary");
   const titles = { pending: "Withdrawal Request", approved: "All Approved Withdraw", rejected: "Rejected Withdrawals", all: "All Withdrawals" };
-  return <><h1>{titles[status] || "Withdrawal Request"}</h1><QueueFilters param="wstatus" /><MoneyList kind="withdraw" path={`/api/admin/withdrawals?status=${status}`} actionPath="/api/admin/withdrawals" /></>;
+  return <><h1>{titles[status] || "Withdrawal Request"}</h1><div className="stats withdraw-summary"><div className="stat tone-amber"><div className="sub">Pending Withdraw</div><h2>Rs {rs(totals?.pending || 0)}</h2><span>Waiting for approval</span></div><div className="stat tone-rose"><div className="sub">Rejected Withdraw</div><h2>Rs {rs(totals?.rejected || 0)}</h2><span>Rejected requests only</span></div></div><QueueFilters param="wstatus" suggest={`/api/admin/withdrawals?status=${status}`} /><MoneyList kind="withdraw" path={`/api/admin/withdrawals?status=${status}&page=${page}`} actionPath="/api/admin/withdrawals" /></>;
 }
 export function TodayWithdrawals() {
-  const [q, setQ] = useState("");
-  const [day, setDay] = useState("");
-  return <><h1>Today approved Withdrawal</h1><div className="filters"><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Email, mobile, or account number" /><input type="date" value={day} onChange={(e) => setDay(e.target.value)} /></div><MoneyList kind="withdraw" path={`/api/admin/withdrawals?status=approved&today=1&q=${encodeURIComponent(q)}&date=${day}`} actionPath="/api/admin/withdrawals" /></>;
+  const [params, setParams] = useSearchParams();
+  const q = params.get("q") || "";
+  const day = params.get("date") || "";
+  const page = params.get("page") || "1";
+  const commit = (value) => {
+    const next = new URLSearchParams(params);
+    if (value) next.set("q", value); else next.delete("q");
+    next.delete("page");
+    setParams(next);
+  };
+  return <><h1>Today approved Withdrawal</h1><SearchBox value={q} placeholder="Search by full email or account number" suggestPath="/api/admin/withdrawals?status=approved" onSearch={commit} onPick={(row) => commit(row.email)} /><div className="filters"><input type="date" value={day} onChange={(e) => { const next = new URLSearchParams(params); if (e.target.value) next.set("date", e.target.value); else next.delete("date"); setParams(next); }} /></div><MoneyList kind="withdraw" path={`/api/admin/withdrawals?status=approved&today=1&date=${day}&page=${page}`} actionPath="/api/admin/withdrawals" /></>;
 }
 export function Rejected() {
-  const [q, setQ] = useState("");
-  const [day, setDay] = useState("");
-  const [plan, setPlan] = useState("");
-  return <><h1>Rejected User</h1><div className="filters"><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Email, username, or mobile" /><input type="date" value={day} onChange={(e) => setDay(e.target.value)} /><select value={plan} onChange={(e) => setPlan(e.target.value)}><option value="">All plans</option>{["Basic", "Gold", "Standard", "Premium", "Super Premium"].map((name) => <option key={name}>{name}</option>)}</select></div><MoneyList kind="deposit" path={`/api/admin/deposits?status=rejected&q=${encodeURIComponent(q)}&date=${day}&plan=${encodeURIComponent(plan)}`} actionPath="/api/admin/deposits" /></>;
+  const [params, setParams] = useSearchParams();
+  const q = params.get("q") || "";
+  const day = params.get("date") || "";
+  const plan = params.get("plan") || "";
+  const page = params.get("page") || "1";
+  const patch = (values) => {
+    const next = new URLSearchParams(params);
+    Object.entries(values).forEach(([key, value]) => { if (value) next.set(key, value); else next.delete(key); });
+    if (!("page" in values)) next.delete("page");
+    setParams(next);
+  };
+  return <><h1>Rejected User</h1><SearchBox value={q} placeholder="Search by full email" suggestPath="/api/admin/deposits?status=rejected" onSearch={(value) => patch({ q: value })} onPick={(row) => patch({ q: row.email })} /><div className="filters"><input type="date" value={day} aria-label="Rejection date" onChange={(e) => patch({ date: e.target.value })} /><select value={plan} onChange={(e) => patch({ plan: e.target.value })}><option value="">All plans</option>{["Basic", "Gold", "Standard", "Premium", "Super Premium"].map((name) => <option key={name}>{name}</option>)}</select></div><MoneyList kind="deposit" path={`/api/admin/deposits?status=rejected&date=${day}&plan=${encodeURIComponent(plan)}&page=${page}`} actionPath="/api/admin/deposits" /></>;
 }
 export function Upgrades() {
   const [params] = useSearchParams();
   const board = useLoad("/api/admin/upgrade-board");
   const status = params.get("ustatus") || "pending";
-  return <><h1>Plan Upgrade</h1><div className="stats"><div className="stat"><div className="sub">Today Plan Upgrades</div><h2>{board?.today_count || 0}</h2></div><div className="stat"><div className="sub">Today Receive Balance</div><h2>Rs {board?.today_receive || "0.00"}</h2></div><div className="stat"><div className="sub">Pending</div><h2>{board?.pending || 0}</h2></div><div className="stat"><div className="sub">Approved</div><h2>{board?.approved || 0}</h2></div><div className="stat"><div className="sub">Rejected</div><h2>{board?.rejected || 0}</h2></div></div><p className="sub">{board?.commission_base}</p><QueueFilters param="ustatus" /><MoneyList kind="upgrade" path={`/api/admin/upgrades?status=${status}`} actionPath="/api/admin/upgrades" /></>;
+  const page = params.get("page") || "1";
+  return <><h1>Plan Upgrade</h1><div className="stats"><div className="stat"><div className="sub">Today Plan Upgrades</div><h2>{board?.today_count || 0}</h2></div><div className="stat"><div className="sub">Today Receive Balance</div><h2>Rs {board?.today_receive || "0.00"}</h2></div><div className="stat"><div className="sub">Pending</div><h2>{board?.pending || 0}</h2></div><div className="stat"><div className="sub">Approved</div><h2>{board?.approved || 0}</h2></div><div className="stat"><div className="sub">Rejected</div><h2>{board?.rejected || 0}</h2></div></div><p className="sub">{board?.commission_base}</p><QueueFilters param="ustatus" suggest={`/api/admin/upgrades?status=${status}`} /><MoneyList kind="upgrade" path={`/api/admin/upgrades?status=${status}&page=${page}`} actionPath="/api/admin/upgrades" /></>;
 }
 export function Gateways() {
+  const toast = useContext(toastContext);
   const [rows, setRows] = useState([]);
   const [note, setNote] = useState("");
   const load = () => api("/api/admin/gateways").then((data) => {
-    const next = ["JazzCash", "Easypaisa"].map((name) => {
-      const found = (data || []).find((row) => row.name.toLowerCase().replace(/\s+/g, "") === name.toLowerCase());
-      return found ? { ...found, name } : { name, account_name: "", account_number: "", active: true };
-    });
-    setRows(next);
+    setRows((data || []).map((row) => ({ ...row, key: String(row.id) })));
   });
   useEffect(() => { load(); }, []);
-  const update = (name, field, value) => setRows((current) => current.map((row) => row.name === name ? { ...row, [field]: value } : row));
+  const update = (key, field, value) => setRows((current) => current.map((row) => row.key === key ? { ...row, [field]: value } : row));
+  const add = (name) => setRows((current) => [...current, { key: `new-${name || "method"}-${Date.now()}`, name, account_name: "", account_number: "", active: true }]);
   const save = async (row) => {
     setNote("");
     try {
       const body = new FormData();
-      body.append("id", row.id || "");
+      if (row.id) body.append("id", row.id);
       body.append("name", row.name);
       body.append("account_name", row.account_name || "");
       body.append("account_number", row.account_number || "");
       body.append("active", row.active === false ? "0" : "1");
       if (row.imageFile) body.append("image", row.imageFile);
       await api("/api/admin/gateways", { method: "POST", body });
-      setNote(`${row.name} saved. Users will see it above the payment screenshot.`);
+      setNote(`${row.name} saved. Every enabled account is shown on the user payment page.`);
+      toast(`${row.name} saved successfully`);
       load();
     } catch (err) {
       setNote(err.message);
+      toast(err.message, "error");
     }
+  };
+  const remove = async (row) => {
+    if (!row.id) {
+      setRows((current) => current.filter((item) => item.key !== row.key));
+      return;
+    }
+    if (!window.confirm(`Remove this ${row.name} account from the user payment page?`)) return;
+    const body = new FormData();
+    body.append("id", row.id);
+    body.append("delete", "1");
+    await api("/api/admin/gateways", { method: "POST", body });
+    setNote(`${row.name} removed.`);
+    load();
   };
   return (
     <>
-      <h1>Easypaisa & JazzCash</h1>
-      <p className="sub">These details show on the user payment page, above the screenshot.</p>
+      <h1>Payment methods</h1>
+      <p className="sub">Every enabled method name is a choice on the user withdrawal page. Add JazzCash, Easypaisa, and any other method. An account number also shows that account on the deposit page.</p>
+      <div className="row-actions">
+        <button className="btn small" type="button" onClick={() => add("JazzCash")}>Add JazzCash</button>
+        <button className="btn small" type="button" onClick={() => add("Easypaisa")}>Add Easypaisa</button>
+        <button className="btn small" type="button" onClick={() => add("")}>Add method</button>
+      </div>
       <div className="stats">{rows.map((row) => (
-        <form className="stat" key={row.name} onSubmit={(e) => { e.preventDefault(); save(row); }}>
-          <b>{row.name}</b>
-          <input placeholder="Account title" value={row.account_name} onChange={(e) => update(row.name, "account_name", e.target.value)} />
-          <input placeholder="Account number" value={row.account_number} onChange={(e) => update(row.name, "account_number", e.target.value)} />
-          <label><input type="checkbox" checked={row.active !== false} onChange={(e) => update(row.name, "active", e.target.checked)} /> Enabled</label>
-          <input type="file" accept="image/*" onChange={(e) => update(row.name, "imageFile", e.target.files[0])} />
+        <form className="stat" key={row.key} onSubmit={(e) => { e.preventDefault(); save(row); }}>
+          <b>{row.name}{row.account_number ? ` · ${row.account_number}` : ""}</b>
+          <input placeholder="Method name" value={row.name || ""} onChange={(e) => update(row.key, "name", e.target.value)} />
+          <input placeholder="Account title" value={row.account_name || ""} onChange={(e) => update(row.key, "account_name", e.target.value)} />
+          <input placeholder="Account number" value={row.account_number || ""} onChange={(e) => update(row.key, "account_number", e.target.value)} />
+          <label><input type="checkbox" checked={row.active !== false} onChange={(e) => update(row.key, "active", e.target.checked)} /> Show in withdrawal options</label>
+          <input type="file" accept="image/*" onChange={(e) => update(row.key, "imageFile", e.target.files[0])} />
           {row.image && <img src={row.image} alt="" width="42" height="42" />}
-          <button className="btn" type="submit">Save {row.name}</button>
+          <div className="row-actions">
+            <button className="btn" type="submit">Save</button>
+            <button className="btn ghost" type="button" onClick={() => remove(row)}>Remove</button>
+          </div>
         </form>
       ))}</div>
+      {rows.length === 0 && <p>No payment account yet. Add JazzCash or Easypaisa above.</p>}
       {note && <p>{note}</p>}
     </>
   );
@@ -1032,7 +1439,9 @@ export function Transactions() {
   const open = (t) => setDetail({
     title: t.title,
     subtitle: t.user_name,
-    fields: [["User", t.user_name], ["Email", t.user_email], ["From", t.source_email || "—"], ["Plan", t.plan_name || "—"], ["Amount", `Rs ${t.amount}`], ["Date", String(t.created_at || "").replace("T", " ").slice(0, 16)]],
+    userId: t.user_id,
+    sourceUserId: t.source_user_id,
+    fields: [["User", t.user_name], ["Email", t.user_email], ["From", t.source_email || "—"], ["Plan", t.plan_name || "—"], ["Amount", `Rs ${t.amount}`], ["Date", whenText(t.created_at)]],
   });
   if (!data) return <p>Loading...</p>;
   const picked = day === "today" ? (data.date || "") : day;
@@ -1041,24 +1450,27 @@ export function Transactions() {
       <h1>{titles[category] || "Transactions"}</h1>
       <p className="sub">{picked ? `Showing ${picked}. This total uses the same records as the dashboard for that date.` : "All dates. This total matches the dashboard overall figure for this source."}</p>
       <div className="stat"><div className="sub">{picked ? "Selected date total" : "Overall total"}</div><h2>Rs {rs(data.total || 0)}</h2><span>{Number(data.count || rows.length).toLocaleString("en-US")} records</span></div>
-      <div className="search-row">
-        <input value={q} onChange={(e) => setQuery({ q: e.target.value })} placeholder="Search name, email, or commission" />
+      <SearchBox value={q} placeholder="Search by full email" suggestPath="/api/admin/users?status=all" onSearch={(value) => setQuery({ q: value })} onPick={(row) => setQuery({ q: row.email })} />
+      <div className="filters">
         <select value={category} onChange={(e) => setQuery({ category: e.target.value })}>
           <option value="">All</option>
-          <option value="direct_traffic">Direct Referral Commission</option>
-          <option value="level_2">Level 2 Indirect Referral Commission</option>
-          <option value="level_3">Level 3 Indirect Referral Commission</option>
+          <option value="overall">Overall Earnings</option>
           <option value="ads">Task Earnings</option>
-          <option value="manual_add">Manual Additions</option>
-          <option value="manual_sub">Manual Subtractions</option>
+          <option value="ads_earn">Ads Earnings</option>
+          <option value="flower">Flower Earnings</option>
+          <option value="manual_add">Balance Add</option>
+          <option value="manual_sub">Balance Subtract</option>
+          <option value="direct_traffic">Direct Referral Commission</option>
+          <option value="indirect_1">Indirect Traffic Commission — Level 1</option>
+          <option value="indirect_2">Indirect Traffic Commission — Level 2</option>
           <option value="referral">Referral Commissions</option>
           <option value="withdraw">Withdraw</option>
         </select>
         <input type="date" value={picked} onChange={(e) => setQuery({ date: e.target.value })} />
         <button className="btn small" type="button" onClick={() => setQuery({ date: "" })}>All dates</button>
       </div>
-      <div className="table-wrap desktop-table"><table><tbody>{rows.map((t) => <tr key={t.id}><td><Link to={t.user_id ? `/admin/users/${t.user_id}` : "/admin/users"}><b>{t.user_name}</b></Link><div className="sub">{t.user_email}</div><div className="sub">{t.title}</div><div className="sub">{String(t.created_at || "").slice(0, 10)}</div></td><td>Rs {t.amount}</td><td><button className="view-btn" type="button" onClick={() => open(t)}>View</button></td></tr>)}</tbody></table></div>
-      <div className="cards">{rows.map((t) => <div className="lb-card" key={t.id}><Link to={t.user_id ? `/admin/users/${t.user_id}` : "/admin/users"}><b>{t.user_name}</b></Link><div className="sub">{t.title}</div><div className="sub">{String(t.created_at || "").slice(0, 10)} · Rs {t.amount}</div><button className="view-btn" type="button" onClick={() => open(t)}>View</button></div>)}</div>
+      <div className="table-wrap desktop-table"><table><tbody>{rows.map((t) => <tr key={t.id}><td><Link to={t.user_id ? `/admin/users/${t.user_id}` : "/admin/users"}><b>{t.user_name}</b></Link><div className="sub"><EmailLink email={t.user_email} userId={t.user_id} /></div><div className="sub">{t.title}</div>{t.source_email && <div className="sub">Related <EmailLink email={t.source_email} userId={t.source_user_id} /></div>}<div className="sub">{whenText(t.created_at)}</div></td><td>Rs {t.amount}</td><td><button className="view-btn" type="button" onClick={() => open(t)}>View</button></td></tr>)}</tbody></table></div>
+      <div className="cards">{rows.map((t) => <div className="lb-card" key={t.id}><Link to={t.user_id ? `/admin/users/${t.user_id}` : "/admin/users"}><b>{t.user_name}</b></Link><div className="sub"><EmailLink email={t.user_email} userId={t.user_id} /></div><div className="sub">{t.title}</div>{t.source_email && <div className="sub">Related <EmailLink email={t.source_email} userId={t.source_user_id} /></div>}<div className="sub">{whenText(t.created_at)} · Rs {t.amount}</div><button className="view-btn" type="button" onClick={() => open(t)}>View</button></div>)}</div>
       {rows.length === 0 && <p>No records for this filter.</p>}
       {Number(data.pages) > 1 && (
         <div className="row-actions">
@@ -1072,9 +1484,10 @@ export function Transactions() {
   );
 }
 export function Settings() {
+  const toast = useContext(toastContext);
   const [notice, setNotice] = useState("");
   useEffect(() => { api("/api/admin/settings").then((d) => setNotice(d.notice)); }, []);
-  return <><h1>General Setting</h1><textarea rows="5" value={notice} onChange={(e) => setNotice(e.target.value)} /><button className="btn" style={{ marginTop: 10, maxWidth: 220 }} onClick={() => api("/api/admin/settings", { method: "POST", body: { notice } })}>Save notice</button></>;
+  return <><h1>General Setting</h1><textarea rows="5" value={notice} onChange={(e) => setNotice(e.target.value)} /><button className="btn" style={{ marginTop: 10, maxWidth: 220 }} onClick={() => api("/api/admin/settings", { method: "POST", body: { notice } }).then(() => toast("Notice saved successfully")).catch((err) => toast(err.message, "error"))}>Save notice</button></>;
 }
 export function Channels() {
   const [rows, setRows] = useState([]);
@@ -1113,27 +1526,37 @@ export function Channels() {
   return <><h1>Official Channels</h1><form onSubmit={submit} className="stat"><input placeholder="Channel title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /><input placeholder="Channel purpose" value={form.purpose} onChange={(e) => setForm({ ...form, purpose: e.target.value })} /><input placeholder="Channel link" value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} /><input name="image" type="file" accept="image/*" /><button className="btn" style={{ marginTop: 8 }}>Add channel</button></form><div className="stats" style={{ marginTop: 16 }}>{rows.map((c) => <div className="stat" key={c.id}>{c.image && <img src={c.image} alt="" width="42" height="42" />}<b>{c.title}</b><div className="sub">{c.purpose}</div><a href={c.link} target="_blank" rel="noreferrer">{c.link}</a><div className="row-actions"><button className="btn small" type="button" onClick={() => edit(c)}>Edit</button><button className="btn ghost small" type="button" onClick={() => remove(c)}>Delete</button></div></div>)}</div>{shot && <DetailModal detail={{ title: "Channel picture", image: shot, fields: [] }} onClose={() => setShot("")} onAction={() => setShot("")} />}</>;
 }
 export function Contacts() {
+  const toast = useContext(toastContext);
+  const empty = { name: "", instructions: "", purpose: "", number: "", number_type: "whatsapp" };
   const [rows, setRows] = useState([]);
-  const [form, setForm] = useState({ name: "", instructions: "", purpose: "", number: "", number_type: "whatsapp" });
+  const [form, setForm] = useState(empty);
   const load = () => api("/api/admin/contacts").then(setRows);
   useEffect(() => { load(); }, []);
   const save = async (e) => {
     e.preventDefault();
-    await api("/api/admin/contacts/save", { method: "POST", body: form });
-    setForm({ name: "", instructions: "", purpose: "", number: "", number_type: "whatsapp" });
-    load();
+    try {
+      await api("/api/admin/contacts/save", { method: "POST", body: form });
+      toast(form.id ? "Leader updated successfully" : "Leader added successfully");
+      setForm(empty);
+      load();
+    } catch (err) {
+      toast(err.message || "Could not save this leader.", "error");
+    }
   };
-  return <><h1>Contact Us</h1><form className="stack stat" onSubmit={save}><input placeholder="Admin name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /><input placeholder="Instructions" value={form.instructions} onChange={(e) => setForm({ ...form, instructions: e.target.value })} /><input placeholder="Admin purpose" value={form.purpose} onChange={(e) => setForm({ ...form, purpose: e.target.value })} /><input placeholder="Contact number" value={form.number} onChange={(e) => setForm({ ...form, number: e.target.value })} required /><select value={form.number_type} onChange={(e) => setForm({ ...form, number_type: e.target.value })}><option value="whatsapp">WhatsApp</option><option value="botim">Botim</option></select><button className="btn">Add admin</button></form><div className="stats">{rows.map((c) => <div className="stat" key={c.id}><b>{c.name}</b><div>{c.number_type || "whatsapp"} · {c.whatsapp}</div><div className="sub">{c.purpose || c.role}</div><div className="sub">{c.note}</div><button className="btn ghost small" type="button" onClick={async () => { if (window.confirm(`Delete ${c.name}?`)) { await api("/api/admin/contacts/save", { method: "POST", body: { id: c.id, delete: "1" } }); load(); } }}>Delete</button></div>)}</div></>;
+  const edit = (row) => setForm({ id: row.id, name: row.name || "", instructions: row.note || row.role || "", purpose: row.purpose || "", number: row.whatsapp || "", number_type: row.number_type || "whatsapp" });
+  return <><h1>Contact Us</h1><form className="stack stat" onSubmit={save}><input placeholder="Admin name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /><input placeholder="Instructions" value={form.instructions} onChange={(e) => setForm({ ...form, instructions: e.target.value })} /><input placeholder="Admin purpose" value={form.purpose} onChange={(e) => setForm({ ...form, purpose: e.target.value })} /><input placeholder="Contact number" value={form.number} onChange={(e) => setForm({ ...form, number: e.target.value })} required /><select value={form.number_type} onChange={(e) => setForm({ ...form, number_type: e.target.value })}><option value="whatsapp">WhatsApp</option><option value="botim">Botim</option></select><div className="row-actions"><button className="btn">{form.id ? "Update leader" : "Add admin"}</button>{form.id && <button className="btn ghost" type="button" onClick={() => setForm(empty)}>Cancel</button>}</div></form><div className="stats">{rows.map((c) => <div className="stat" key={c.id}><b>{c.name}</b><div>{c.number_type || "whatsapp"} · {c.whatsapp}</div><div className="sub">{c.purpose || c.role}</div><div className="sub">{c.note}</div><div className="row-actions"><button className="btn small" type="button" onClick={() => edit(c)}>Edit</button><button className="btn ghost small" type="button" onClick={async () => { if (window.confirm(`Delete ${c.name}?`)) { try { await api("/api/admin/contacts/save", { method: "POST", body: { id: c.id, delete: "1" } }); toast("Leader removed successfully"); load(); } catch (err) { toast(err.message, "error"); } } }}>Delete</button></div></div>)}</div></>;
 }
 export function Levels() {
   const data = useLoad("/api/admin/levels");
   const [form, setForm] = useState(null);
   const [note, setNote] = useState("");
+  const toast = useContext(toastContext);
   useEffect(() => { if (data && !form) setForm({ direct_percent: data.direct || "", level2_percent: data.level2 || "", level3_percent: data.level3 || "" }); }, [data]);
   if (!form) return <p>Loading...</p>;
-  return <><h1>Levels Setting</h1><p className="sub">Current direct {data.direct}% · Level 2 {data.level2}% · Level 3 {data.level3}%. New percentages apply to future eligible calculations.</p><form className="stack stat" onSubmit={(e) => { e.preventDefault(); api("/api/admin/levels/save", { method: "POST", body: form }).then(() => setNote("Saved.")).catch((err) => setNote(err.message)); }}><label>Direct traffic commission <input value={form.direct_percent} onChange={(e) => setForm({ ...form, direct_percent: e.target.value })} /></label><label>Indirect commission – Level 2 <input value={form.level2_percent} onChange={(e) => setForm({ ...form, level2_percent: e.target.value })} /></label><label>Indirect commission – Level 3 <input value={form.level3_percent} onChange={(e) => setForm({ ...form, level3_percent: e.target.value })} /></label><button className="btn">Save future percentages</button>{note && <p>{note}</p>}</form></>;
+  return <><h1>Levels Setting</h1><p className="sub">Current direct {data.direct}% · Level 2 {data.level2}% · Level 3 {data.level3}%. New percentages apply to future eligible calculations.</p><form className="stack stat" onSubmit={(e) => { e.preventDefault(); api("/api/admin/levels/save", { method: "POST", body: form }).then(() => { setNote("Saved."); toast("Level percentages saved successfully"); }).catch((err) => { setNote(err.message); toast(err.message, "error"); }); }}><label>Direct traffic commission <input value={form.direct_percent} onChange={(e) => setForm({ ...form, direct_percent: e.target.value })} /></label><label>Indirect commission – Level 2 <input value={form.level2_percent} onChange={(e) => setForm({ ...form, level2_percent: e.target.value })} /></label><label>Indirect commission – Level 3 <input value={form.level3_percent} onChange={(e) => setForm({ ...form, level3_percent: e.target.value })} /></label><button className="btn">Save future percentages</button>{note && <p>{note}</p>}</form></>;
 }
 export function AdminAccount() {
+  const toast = useContext(toastContext);
   const [email, setEmail] = useState("");
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
@@ -1141,7 +1564,7 @@ export function AdminAccount() {
   const [note, setNote] = useState("");
   const load = () => { api("/api/admin/account").then((d) => setEmail(d.email)); api("/api/admin/sessions").then(setSessions); };
   useEffect(() => { load(); }, []);
-  return <><h1>Admin account</h1><form className="stack stat" onSubmit={async (e) => { e.preventDefault(); try { await api("/api/admin/account", { method: "POST", body: { email, current_password: current, new_password: next } }); setNote("Saved."); setCurrent(""); setNext(""); } catch (err) { setNote(err.message); } }}><input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Admin email" /><input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} placeholder="Current password" required /><input type="password" value={next} onChange={(e) => setNext(e.target.value)} placeholder="New password, optional" /><button className="btn">Save account</button>{note && <p>{note}</p>}</form><h2>Active sessions</h2>{sessions.map((row) => <div className="stat" key={row.key}><b>{row.email}</b><div>{row.device} · {row.browser}</div><div className="sub">Login {new Date(row.login_time).toLocaleString()}</div><div className="sub">Last activity {row.last_seen ? new Date(row.last_seen).toLocaleString() : "—"}</div>{row.revoked ? <span>Revoked</span> : <button className="btn ghost small" type="button" onClick={async () => { await api("/api/admin/sessions", { method: "POST", body: { key: row.key } }); load(); }}>Revoke</button>}</div>)}</>;
+  return <><h1>Admin account</h1><form className="stack stat" onSubmit={async (e) => { e.preventDefault(); try { await api("/api/admin/account", { method: "POST", body: { email, current_password: current, new_password: next } }); setNote("Saved."); setCurrent(""); setNext(""); toast("Admin account saved successfully"); } catch (err) { setNote(err.message); toast(err.message, "error"); } }}><input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Admin email" /><input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} placeholder="Current password" required /><input type="password" value={next} onChange={(e) => setNext(e.target.value)} placeholder="New password, optional" /><button className="btn">Save account</button>{note && <p>{note}</p>}</form><h2>Active sessions</h2>{sessions.map((row) => <div className="stat" key={row.key}><b>{row.email}</b><div>{row.device} · {row.browser}</div><div className="sub">Login {new Date(row.login_time).toLocaleString()}</div><div className="sub">Last activity {row.last_seen ? new Date(row.last_seen).toLocaleString() : "—"}</div>{row.revoked ? <span>Revoked</span> : <button className="btn ghost small" type="button" onClick={async () => { await api("/api/admin/sessions", { method: "POST", body: { key: row.key } }); load(); }}>Revoke</button>}</div>)}</>;
 }
 export function Rewards() {
   const data = useLoad("/api/admin/rewards");

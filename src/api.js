@@ -30,7 +30,17 @@ export async function api(path, options = {}) {
   if (token()) headers.Authorization = `Token ${token()}`;
   const sessionKey = localStorage.getItem("flower_admin_session");
   if (sessionKey) headers["X-Admin-Session"] = sessionKey;
-  const response = await fetch(path, { ...options, headers, body: options.body instanceof FormData || typeof options.body === "string" || !options.body ? options.body : JSON.stringify(options.body) });
+  let response;
+  try {
+    response = await fetch(path, { ...options, headers, body: options.body instanceof FormData || typeof options.body === "string" || !options.body ? options.body : JSON.stringify(options.body) });
+  } catch (err) {
+    if (err.name === "AbortError") {
+      const abort = new Error("aborted");
+      abort.name = "AbortError";
+      throw abort;
+    }
+    throw err;
+  }
   const data = await response.json().catch(() => ({}));
   if (response.status === 413) throw new Error("Payment screenshot is too large. Choose a smaller photo.");
   if (response.status === 401) {
