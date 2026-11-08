@@ -2686,9 +2686,27 @@ button.back-link { background: none; border: 0; padding: 0; font: inherit; curso
 .burst-flower.is-greens { display: none; }
 .channel-pop { position: relative; }
 .channel-card { display: flex; gap: 10px; align-items: center; padding: 12px; border-radius: 16px; background: #fff; border: 1px solid #f3c3dc; text-decoration: none; margin: 8px 0; box-shadow: 0 8px 18px rgba(233, 30, 140, .08); }
-.channel-ico { font-size: 28px; }
+.channel-ico { width: 44px; height: 44px; flex: 0 0 44px; border-radius: 12px; object-fit: cover; font-size: 28px; display: grid; place-items: center; }
+.channel-fallback { background: #fff0f7; }
 .channel-card b, .channel-card span { display: block; }
+.channel-copy { min-width: 0; }
+.channel-copy span { color: #8d7b87; font-size: 12px; line-height: 1.4; }
 .channel-card em { margin-left: auto; color: #e91e8c; font-style: normal; font-weight: 800; }
+.contact-admin-list { display: grid; gap: 14px; max-width: 760px; margin: 14px auto; }
+.contact-admin-card { padding: 18px; border: 1px solid #f5d6e6; border-radius: 20px; background: linear-gradient(145deg, #fff, #fff7fb); box-shadow: 0 10px 24px rgba(189, 76, 131, .08); }
+.contact-admin-card h3 { margin: 0; color: #352a39; font-size: 19px; }
+.contact-purpose { margin: 5px 0 0; color: #df287f; font-weight: 700; }
+.contact-instructions { margin: 12px 0; padding: 12px; border-radius: 14px; background: #fff; color: #6e5d6a; }
+.contact-instructions p { margin: 4px 0 0; white-space: pre-wrap; }
+.contact-methods { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+.contact-method-card { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 11px; border: 1px solid #f2d5e4; border-radius: 14px; color: inherit; text-decoration: none; background: white; }
+.contact-method-card img, .contact-method-card > i { width: 42px; height: 42px; flex: 0 0 42px; border-radius: 12px; object-fit: cover; }
+.contact-method-card > i { display: grid; place-items: center; background: #fff0f7; color: #e91e8c; font-size: 20px; font-style: normal; font-weight: 800; }
+.contact-method-card span { min-width: 0; }
+.contact-method-card b, .contact-method-card small, .contact-method-card em { display: block; overflow-wrap: anywhere; }
+.contact-method-card small { color: #81717d; margin-top: 2px; }
+.contact-method-card em { color: #e91e8c; font-size: 11px; font-style: normal; font-weight: 800; margin-top: 3px; }
+.empty-note { padding: 18px; border-radius: 16px; background: #fff; color: #897987; text-align: center; }
 .plan-flower-name { display: block; color: #9a6a86; font-weight: 700; }
 .upgrade-lock h1, .ban-board h1 { font-size: 26px; }
 @keyframes flower-sway { 0%, 100% { transform: rotate(-7deg); } 50% { transform: rotate(7deg) translateY(-2px); } }
@@ -2698,4 +2716,38 @@ button.back-link { background: none; border: 0; padding: 0; font: inherit; curso
   .level-board { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admin h1 { font-size: 22px; }
   .team-split b { font-size: 16px; }
+  .contact-methods { grid-template-columns: 1fr; }
+  .channel-card { padding: 10px; }
+}
+.leaderboard-filters { align-items: end; }
+.leaderboard-table-wrap { overflow: visible; }
+.leaderboard-table { min-width: 0; }
+.leaderboard-table th { color: #806b7a; font-size: 12px; }
+.leaderboard-table td { border-top: 1px solid #f4e4ed; padding: 12px 8px; }
+.payment-edit-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 14px; margin-bottom: 14px; border: 1px solid #f3c3dc; border-radius: 16px; background: #fff9fc; }
+.payment-edit-form h3, .payment-edit-form .row-actions, .payment-edit-form .error { grid-column: 1 / -1; }
+.payment-edit-form h3 { margin: 0; }
+.payment-edit-form label, .contact-admin-form label, .channel-admin-form label, .channel-admin-cards label { display: grid; gap: 5px; color: #786675; font-size: 12px; font-weight: 700; }
+.payment-edit-form input, .payment-edit-form select { min-width: 0; }
+.contact-admin-method { display: flex; align-items: center; gap: 7px; margin-top: 8px; overflow-wrap: anywhere; }
+.contact-admin-method img { width: 26px; height: 26px; object-fit: cover; border-radius: 50%; }
+.contact-admin-cards, .channel-admin-cards { margin-top: 16px; }
+.channel-admin-icon { display: block; object-fit: cover; border-radius: 12px; cursor: zoom-in; }
+.channel-admin-cards .stat { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-width: 0; }
+.channel-admin-cards a { max-width: 100%; overflow-wrap: anywhere; }
+.channel-admin-cards input[type="file"], .contact-admin-form input[type="file"] { width: 100%; font-size: 12px; }
+.channel-admin-form { display: grid; gap: 10px; }
+.contact-admin-form { display: grid; gap: 10px; }
+@media (max-width: 640px) {
+  .leaderboard-table, .leaderboard-table tbody, .leaderboard-table tr, .leaderboard-table td { display: block; width: 100%; }
+  .leaderboard-table thead { display: none; }
+  .leaderboard-table tbody { display: grid; gap: 10px; }
+  .leaderboard-table tr { padding: 10px 12px; border: 1px solid #f1d9e7; border-radius: 14px; background: #fff; }
+  .leaderboard-table td { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 5px 0; border-top: 0; text-align: right; overflow-wrap: anywhere; }
+  .leaderboard-table td::before { content: attr(data-label); color: #8a7584; font-size: 11px; font-weight: 700; text-align: left; }
+  .leaderboard-table td[data-label="User"] { display: block; text-align: left; }
+  .leaderboard-table td[data-label="User"]::before { display: block; margin-bottom: 3px; }
+  .leaderboard-table .team-mail, .leaderboard-table .team-mail a { display: block; max-width: none; }
+  .payment-edit-form { grid-template-columns: 1fr; }
+  .payment-edit-form h3, .payment-edit-form .row-actions, .payment-edit-form .error { grid-column: auto; }
 }

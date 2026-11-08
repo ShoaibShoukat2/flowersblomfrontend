@@ -318,7 +318,22 @@ function DetailModal({ detail, onClose, onAction }) {
   const [reason, setReason] = useState("");
   const [custom, setCustom] = useState("");
   const [pay, setPay] = useState("no");
+  const [editing, setEditing] = useState(false);
+  const [editForm, setEditForm] = useState(null);
+  const [editError, setEditError] = useState("");
   const chosen = reason === "custom" ? custom.trim() : reason;
+  useEffect(() => {
+    setEditing(false);
+    setEditError("");
+    setEditForm(detail ? {
+      plan_id: String(detail.plan_id || ""),
+      amount: String(detail.amount || ""),
+      method: detail.method || "",
+      sender_name: detail.sender_name || "",
+      sender: detail.sender || "",
+      trx_no: detail.trx_no || "",
+    } : null);
+  }, [detail?.id]);
   useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") onClose(); };
     document.body.style.overflow = "hidden";
@@ -344,10 +359,47 @@ function DetailModal({ detail, onClose, onAction }) {
         </div>
         {detail.compact ? <WithdrawBrief detail={detail} /> : (
           <>
-        <SlipImage src={detail.image} />
-        <div className="modal-fields">
+        {editing && editForm && (
+          <form className="payment-edit-form" onSubmit={(event) => {
+            event.preventDefault();
+            setEditError("");
+            const form = event.currentTarget;
+            if (!editForm.plan_id || !editForm.amount || !Number.isFinite(Number(editForm.amount)) || Number(editForm.amount) <= 0) {
+              setEditError("Choose a plan and enter a valid payment amount.");
+              return;
+            }
+            onAction(detail.id, "edit", {
+              ...editForm,
+              screenshot: form.elements.screenshot.files[0] || null,
+            });
+          }}>
+            <h3>Edit payment details</h3>
+            <label>Selected plan
+              <select value={editForm.plan_id} onChange={(event) => setEditForm({ ...editForm, plan_id: event.target.value })} required>
+                <option value="">Choose a plan</option>
+                {(detail.plans || []).map((plan) => <option key={plan.id} value={plan.id}>{plan.name} · Rs {plan.price}</option>)}
+              </select>
+            </label>
+            <label>Payment amount<input inputMode="decimal" value={editForm.amount} onChange={(event) => setEditForm({ ...editForm, amount: event.target.value })} required /></label>
+            <label>Payment method<input value={editForm.method} onChange={(event) => setEditForm({ ...editForm, method: event.target.value })} /></label>
+            <label>Sender name<input value={editForm.sender_name} onChange={(event) => setEditForm({ ...editForm, sender_name: event.target.value })} /></label>
+            <label>Sender number<input value={editForm.sender} onChange={(event) => setEditForm({ ...editForm, sender: event.target.value })} /></label>
+            <label>Transaction number<input value={editForm.trx_no} onChange={(event) => setEditForm({ ...editForm, trx_no: event.target.value })} /></label>
+            <label>Replace payment screenshot<input name="screenshot" type="file" accept="image/jpeg,image/png,image/webp" /></label>
+            {editError && <p className="error">{editError}</p>}
+            <div className="row-actions">
+              <button className="btn small" type="submit">Save payment details</button>
+              <button className="btn ghost small" type="button" onClick={() => { setEditing(false); setEditError(""); }}>Cancel</button>
+            </div>
+          </form>
+        )}
+        {detail.brief && <div className="modal-fields">
           {(detail.fields || []).map(([label, value]) => <div key={label}><span>{label}</span><b>{fieldText(label, value, detail)}</b></div>)}
-        </div>
+        </div>}
+        <SlipImage src={detail.image} />
+        {!detail.brief && <div className="modal-fields">
+          {(detail.fields || []).map(([label, value]) => <div key={label}><span>{label}</span><b>{fieldText(label, value, detail)}</b></div>)}
+        </div>}
         {detail.loading && <p className="sub">Loading account, upliner, and team...</p>}
         {detail.account && (
           <section className="review-block">
@@ -464,6 +516,7 @@ function DetailModal({ detail, onClose, onAction }) {
             <div className="row-actions">
               <button className="btn small" type="button" onClick={() => onAction(detail.id, "approve", { pay_commission: pay === "yes" })}>{detail.reapprove ? "Re-Approve" : "Approve"}</button>
               {allowReject && <button className="btn ghost small" type="button" onClick={() => { if (!chosen) { toast("A rejection reason is required.", "error"); return; } onAction(detail.id, "reject", { reason: chosen }); }}>Reject</button>}
+              {detail.editable && <button className="btn ghost small" type="button" onClick={() => { setEditing((current) => !current); setEditError(""); }}>{editing ? "Close editor" : "Edit"}</button>}
             </div>
           </div>
         )}
@@ -862,18 +915,13 @@ function paymentDetail(row, kind, options = {}) {
   let title = "Payment slip";
   let fields = [["Name", row.full_name], ["Email", row.email]];
   if (kind === "deposit" && options.brief) {
-    title = "Payment details";
+    title = "User Information";
     fields = [
+      ["User Name", row.full_name || "—"],
+      ["User Email", row.email || "—"],
       ["Date & Time", when],
-      ["Email", row.email || "—"],
       ["Sender Name", payer.name],
       ["Sender Number", payer.number],
-      ["Transaction Number", row.trx_no || "—"],
-      ["User Name", row.full_name || "—"],
-      ["Username", row.username || "—"],
-      ["User Code", row.code || "—"],
-      ["Upline Name", upliner],
-      ["Upline Email", row.upliner?.email || "—"],
     ];
   } else if (kind === "upgrade") {
     title = "Plan upgrade";
@@ -893,7 +941,28 @@ function paymentDetail(row, kind, options = {}) {
       ["Upliner", upliner], ["Plan", row.plan || "—"], ...moneyRows,
     ];
   }
-  return { id: row.id, title, subtitle: options.brief ? "" : row.email, image: row.screenshot, fields, sheet: kind !== "upgrade", kind, pending: row.status !== "approved", reapprove: row.status === "rejected", status: row.status || "", rejectReason: row.reject_reason || "", upliner: row.upliner || null };
+  return {
+    id: row.id,
+    title,
+    subtitle: options.brief ? "" : row.email,
+    image: row.screenshot,
+    fields,
+    brief: kind === "deposit" && Boolean(options.brief),
+    sheet: kind !== "upgrade",
+    kind,
+    pending: row.status !== "approved",
+    editable: kind === "deposit" && row.status !== "approved",
+    reapprove: row.status === "rejected",
+    status: row.status || "",
+    rejectReason: row.reject_reason || "",
+    upliner: row.upliner || null,
+    plan_id: row.plan_id,
+    amount: row.amount,
+    method: row.method || "",
+    sender: payer.number === "—" ? "" : payer.number,
+    sender_name: payer.name === "—" ? "" : payer.name,
+    trx_no: row.trx_no || "",
+  };
 }
 
 function SlipView({ onOpen }) {
@@ -1239,9 +1308,8 @@ export function Leaderboard() {
   const level = params.get("level") || "";
   const sort = params.get("sort") || "earnings";
   const day = params.get("date") || "";
-  const clock = params.get("time") || "";
   const page = params.get("page") || "1";
-  const data = useLoad(`/api/admin/leaderboard?q=${encodeURIComponent(q)}&level=${encodeURIComponent(level)}&sort=${encodeURIComponent(sort)}&date=${encodeURIComponent(day)}&time=${encodeURIComponent(clock)}&page=${page}`);
+  const data = useLoad(`/api/admin/leaderboard?q=${encodeURIComponent(q)}&level=${encodeURIComponent(level)}&sort=${encodeURIComponent(sort)}&date=${encodeURIComponent(day)}&page=${page}`);
   const patch = (values) => {
     const next = new URLSearchParams(params);
     Object.entries(values).forEach(([key, value]) => { if (value) next.set(key, value); else next.delete(key); });
@@ -1261,11 +1329,8 @@ export function Leaderboard() {
           </button>
         ))}
       </div>
-      <div className="filters">
-        <div className="search-field">
-          <input value={q} onChange={(e) => patch({ q: e.target.value })} placeholder="Search name or email" aria-label="Search name or email" />
-          {q ? <button className="search-clear" type="button" aria-label="Clear search" onClick={() => patch({ q: "" })}>×</button> : null}
-        </div>
+      <SearchBox value={q} placeholder="Search name or email" onSearch={(value) => patch({ q: value })} />
+      <div className="filters leaderboard-filters">
         <select value={level} onChange={(e) => patch({ level: e.target.value })}><option value="">All levels</option>{levels.map((item) => <option key={item.level} value={item.level}>Level {item.level}</option>)}</select>
         <select value={sort} onChange={(e) => patch({ sort: e.target.value })}>
           <option value="earnings">Earning high to low</option>
@@ -1274,14 +1339,13 @@ export function Leaderboard() {
           <option value="level_low">Level low to high</option>
         </select>
         <input type="date" value={day} aria-label="Joining date" onChange={(e) => patch({ date: e.target.value })} />
-        <input type="time" value={clock} aria-label="Joining time" onChange={(e) => patch({ time: e.target.value })} />
       </div>
       {!data && <p>Loading...</p>}
-      <div className="table-wrap team-scroll"><table className="team-table"><thead><tr><th>#</th><th>User</th><th>Approved team</th><th>Level</th><th>Earning</th></tr></thead><tbody>
-        {rows.map((u) => <tr key={u.id}><td>{u.serial}</td><td><b>{u.full_name}</b><div className="team-mail"><EmailLink email={u.email} userId={u.id} /></div></td><td>{u.active_team}</td><td>Level {u.level}</td><td>Rs {u.earnings}</td></tr>)}
+      <div className="table-wrap leaderboard-table-wrap"><table className="team-table leaderboard-table"><thead><tr><th>#</th><th>User Name & Email</th><th>Approved Team</th><th>Level</th><th>Earnings</th></tr></thead><tbody>
+        {rows.map((u) => <tr key={u.id}><td data-label="#"> {u.serial}</td><td data-label="User"><b>{u.full_name}</b><div className="team-mail"><EmailLink email={u.email} userId={u.id} /></div></td><td data-label="Approved Team">{u.active_team}</td><td data-label="Level">Level {u.level}</td><td data-label="Earnings">Rs {u.earnings}</td></tr>)}
       </tbody></table></div>
       {data && rows.length === 0 && <p>No users for this filter.</p>}
-      <Pager page={data?.page} pages={data?.pages} onPage={(nextPage) => patch({ page: String(nextPage), q, level, sort, date: day, time: clock })} />
+      <Pager page={data?.page} pages={data?.pages} onPage={(nextPage) => patch({ page: String(nextPage), q, level, sort, date: day })} />
     </>
   );
 }
@@ -1311,6 +1375,7 @@ function MoneyList({ path, actionPath, kind = "deposit", brief = false }) {
   const [rows, setRows] = useState([]);
   const [ready, setReady] = useState(false);
   const [meta, setMeta] = useState({ page: 1, pages: 1 });
+  const [plans, setPlans] = useState([]);
   const [detail, setDetail] = useState(null);
   const [params, setParams] = useSearchParams();
   const toast = useContext(toastContext);
@@ -1332,6 +1397,7 @@ function MoneyList({ path, actionPath, kind = "deposit", brief = false }) {
       if (!live) return;
       const next = rowsOf(payload);
       setRows(next);
+      setPlans(payload.plans || []);
       setMeta({ page: payload.page || 1, pages: payload.pages || 1 });
       setReady(true);
     }).catch((err) => {
@@ -1341,7 +1407,24 @@ function MoneyList({ path, actionPath, kind = "deposit", brief = false }) {
     });
     return () => { live = false; ctrl.abort(); };
   }, [fullPath, tick]);
-  const act = (id, action, extra = {}) => api(`${actionPath}/${id}`, { method: "POST", body: { action, reason: extra.reason || "", pay_commission: extra.pay_commission ? "yes" : "no" } }).then(() => {
+  const act = (id, action, extra = {}) => {
+    let body;
+    if (action === "edit") {
+      body = new FormData();
+      body.append("action", "edit");
+      Object.entries(extra).forEach(([key, value]) => {
+        if (value !== null && value !== undefined) body.append(key, value);
+      });
+    } else {
+      body = { action, reason: extra.reason || "", pay_commission: extra.pay_commission ? "yes" : "no" };
+    }
+    return api(`${actionPath}/${id}`, { method: "POST", body }).then(() => {
+    if (action === "edit") {
+      setDetail(null);
+      window.dispatchEvent(new Event("admin-data-refresh"));
+      toast("Payment details updated. The saved plan will be used for approval.");
+      return;
+    }
     const stay = kind === "deposit" && action === "approve" && detail?.reapprove;
     if (stay) {
       setRows((current) => current.map((row) => row.id === id ? { ...row, status: "approved" } : row));
@@ -1353,6 +1436,7 @@ function MoneyList({ path, actionPath, kind = "deposit", brief = false }) {
     refreshAdmin();
     toast(actionMessage(kind, action));
   }).catch((err) => toast(err.message || "The action could not be saved.", "error"));
+  };
   const actions = (row) => row.status === "approved"
     ? <span className="badge" style={{ background: "#d1fae5", color: "#065f46" }}>approved</span>
     : row.status === "rejected"
@@ -1404,7 +1488,14 @@ function MoneyList({ path, actionPath, kind = "deposit", brief = false }) {
       return;
     }
     const base = paymentDetail(row, kind, { brief });
-    setDetail({ ...base, userId: row.user_id, review: kind !== "upgrade", upliner: row.upliner || null, loading: Boolean(row.user_id) });
+    setDetail({
+      ...base,
+      plans: kind === "deposit" ? plans : [],
+      userId: row.user_id,
+      review: kind !== "upgrade",
+      upliner: row.upliner || null,
+      loading: Boolean(row.user_id),
+    });
     const extraJob = Promise.resolve(null);
     const userJob = Promise.resolve(null);
     Promise.all([extraJob, userJob]).then(([extra, userData]) => {
@@ -1471,7 +1562,7 @@ function MoneyList({ path, actionPath, kind = "deposit", brief = false }) {
   );
 }
 
-function QueueFilters({ param = "slip", suggest }) {
+function QueueFilters({ param = "slip", suggest, afterSearch }) {
   const [params, setParams] = useSearchParams();
   const status = params.get(param) || "pending";
   const q = params.get("q") || "";
@@ -1484,6 +1575,7 @@ function QueueFilters({ param = "slip", suggest }) {
   return (
     <>
       <SearchBox value={q} placeholder="Search by full email" suggestPath={suggest} onSearch={commit} onPick={(row) => commit(row.email)} />
+      {afterSearch}
       <div className="filters">
         {[["pending", "Pending"], ["approved", "Approved"], ["rejected", "Rejected"], ["all", "All"]].map(([value, label]) => (
           <button key={value} type="button" className={status === value ? "chip on" : "chip"} onClick={() => { const next = new URLSearchParams(params); next.set(param, value); next.delete("page"); setParams(next); }}>{label}</button>
@@ -1587,7 +1679,25 @@ export function Upgrades() {
     next.delete("page");
     setParams(next);
   };
-  return <><h1>Plan Upgrade</h1><div className="filters"><label>Report date <input type="date" value={day} onChange={(e) => setDay(e.target.value)} /></label><button className="btn small" type="button" onClick={() => setDay("")}>Today</button></div><div className="stats"><div className="stat"><div className="sub">Receive balance · {label}</div><h2>Rs {board?.today_receive || "0.00"}</h2></div><div className="stat"><div className="sub">Pending · {label}</div><h2>{board?.pending || 0}</h2></div><div className="stat"><div className="sub">Approved · {label}</div><h2>{board?.approved || 0}</h2></div><div className="stat"><div className="sub">Rejected · {label}</div><h2>{board?.rejected || 0}</h2></div><div className="stat"><div className="sub">Approved count · {label}</div><h2>{board?.today_count || 0}</h2></div></div><p className="sub">Approving an upgrade adds its amount to this date's receive balance. {board?.commission_base}</p><QueueFilters param="ustatus" suggest={`/api/admin/upgrades?status=${status}&date=${day}`} /><MoneyList kind="upgrade" path={`/api/admin/upgrades?status=${status}&date=${encodeURIComponent(day)}&page=${page}`} actionPath="/api/admin/upgrades" /></>;
+  return <>
+    <h1>Plan Upgrade</h1>
+    <div className="stats">
+      <div className="stat"><div className="sub">Receive Balance · {label}</div><h2>Rs {board?.today_receive || "0.00"}</h2></div>
+      <div className="stat"><div className="sub">Pending · {label}</div><h2>{board?.pending || 0}</h2></div>
+      <div className="stat"><div className="sub">Approved · {label}</div><h2>{board?.approved || 0}</h2></div>
+      <div className="stat"><div className="sub">Rejected · {label}</div><h2>{board?.rejected || 0}</h2></div>
+      <div className="stat"><div className="sub">Pending · All Records</div><h2>{board?.all_pending || 0}</h2></div>
+      <div className="stat"><div className="sub">Approved · All Records</div><h2>{board?.all_approved || 0}</h2></div>
+      <div className="stat"><div className="sub">Rejected · All Records</div><h2>{board?.all_rejected || 0}</h2></div>
+    </div>
+    <p className="sub">Receive balance includes approved upgrade payments only. {board?.commission_base}</p>
+    <QueueFilters
+      param="ustatus"
+      suggest={`/api/admin/upgrades?status=${status}&date=${encodeURIComponent(day || board?.date || "")}`}
+      afterSearch={<div className="filters upgrade-date-filter"><label>Date Filter <input type="date" value={day || board?.date || ""} onChange={(e) => setDay(e.target.value)} /></label><button className="btn small" type="button" onClick={() => setDay("")}>Today</button></div>}
+    />
+    <MoneyList kind="upgrade" path={`/api/admin/upgrades?status=${status}&date=${encodeURIComponent(day || board?.date || "")}&page=${page}`} actionPath="/api/admin/upgrades" />
+  </>;
 }
 export function Gateways() {
   const toast = useContext(toastContext);
@@ -1759,10 +1869,12 @@ export function Channels() {
     const title = window.prompt("Channel title", channel.title);
     if (!title) return;
     const purpose = window.prompt("Channel purpose", channel.purpose || "") || "";
+    const description = window.prompt("Channel description", channel.description || "") || "";
     const link = window.prompt("Channel link", channel.link) || channel.link;
     const body = new FormData();
     body.append("title", title);
     body.append("purpose", purpose);
+    body.append("description", description);
     body.append("link", link);
     await api(`/api/admin/channels/${channel.id}`, { method: "POST", body });
     load();
@@ -1774,28 +1886,94 @@ export function Channels() {
     await api(`/api/admin/channels/${channel.id}`, { method: "POST", body });
     load();
   };
-  return <><h1>Official Channels</h1><form onSubmit={submit} className="stat"><input placeholder="Channel title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /><input placeholder="Channel purpose" value={form.purpose} onChange={(e) => setForm({ ...form, purpose: e.target.value })} /><input placeholder="Channel link" value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} /><input name="image" type="file" accept="image/*" /><button className="btn" style={{ marginTop: 8 }}>Add channel</button></form><div className="stats" style={{ marginTop: 16 }}>{rows.map((c) => <div className="stat" key={c.id}>{c.image && <img src={c.image} alt="" width="42" height="42" />}<b>{c.title}</b><div className="sub">{c.purpose}</div><a href={c.link} target="_blank" rel="noreferrer">{c.link}</a><div className="row-actions"><button className="btn small" type="button" onClick={() => edit(c)}>Edit</button><button className="btn ghost small" type="button" onClick={() => remove(c)}>Delete</button></div></div>)}</div>{shot && <DetailModal detail={{ title: "Channel picture", image: shot, fields: [] }} onClose={() => setShot("")} onAction={() => setShot("")} />}</>;
+  return <>
+    <h1>Official Channels</h1>
+    <form onSubmit={submit} className="stat channel-admin-form">
+      <input placeholder="Channel title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
+      <input placeholder="Channel purpose" value={form.purpose} onChange={(e) => setForm({ ...form, purpose: e.target.value })} />
+      <textarea placeholder="Channel description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+      <input placeholder="Channel link" value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} required />
+      <label>Channel icon<input name="image" type="file" accept="image/jpeg,image/png,image/webp" /></label>
+      <button className="btn" style={{ marginTop: 8 }}>Add channel</button>
+    </form>
+    <div className="stats channel-admin-cards" style={{ marginTop: 16 }}>{rows.map((c) => <div className="stat" key={c.id}>
+      {c.image && <img src={c.image} alt={`${c.title} icon`} width="48" height="48" className="channel-admin-icon" onClick={() => setShot(c.image)} />}
+      <b>{c.title}</b><div className="sub">{c.purpose}</div><p>{c.description}</p>
+      <a href={c.link} target="_blank" rel="noreferrer">{c.link}</a>
+      <label>Replace icon<input type="file" accept="image/jpeg,image/png,image/webp" onChange={async (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+        const body = new FormData();
+        body.append("image", file);
+        try { await api(`/api/admin/channels/${c.id}`, { method: "POST", body }); toast("Channel icon updated"); load(); }
+        catch (err) { toast(err.message, "error"); }
+        finally { event.target.value = ""; }
+      }} /></label>
+      <div className="row-actions"><button className="btn small" type="button" onClick={() => edit(c)}>Edit</button><button className="btn ghost small" type="button" onClick={() => remove(c)}>Delete</button></div>
+    </div>)}</div>
+    {shot && <DetailModal detail={{ title: "Channel picture", image: shot, fields: [] }} onClose={() => setShot("")} onAction={() => setShot("")} />}
+  </>;
 }
 export function Contacts() {
   const toast = useContext(toastContext);
-  const empty = { name: "", instructions: "", purpose: "", number: "", number_type: "whatsapp" };
+  const empty = { name: "", instructions: "", purpose: "", whatsapp: "", botim: "" };
   const [rows, setRows] = useState([]);
   const [form, setForm] = useState(empty);
+  const [icons, setIcons] = useState({ whatsapp_icon: null, botim_icon: null });
   const load = () => api("/api/admin/contacts").then(setRows);
   useEffect(() => { load(); }, []);
   const save = async (e) => {
     e.preventDefault();
     try {
-      await api("/api/admin/contacts/save", { method: "POST", body: form });
+      const body = new FormData();
+      Object.entries(form).forEach(([key, value]) => body.append(key, value));
+      Object.entries(icons).forEach(([key, file]) => { if (file) body.append(key, file); });
+      await api("/api/admin/contacts/save", { method: "POST", body });
       toast(form.id ? "Leader updated successfully" : "Leader added successfully");
       setForm(empty);
+      setIcons({ whatsapp_icon: null, botim_icon: null });
       load();
     } catch (err) {
       toast(err.message || "Could not save this leader.", "error");
     }
   };
-  const edit = (row) => setForm({ id: row.id, name: row.name || "", instructions: row.note || row.role || "", purpose: row.purpose || "", number: row.whatsapp || "", number_type: row.number_type || "whatsapp" });
-  return <><h1>Contact Us</h1><form className="stack stat" onSubmit={save}><input placeholder="Admin name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /><input placeholder="Instructions" value={form.instructions} onChange={(e) => setForm({ ...form, instructions: e.target.value })} /><input placeholder="Admin purpose" value={form.purpose} onChange={(e) => setForm({ ...form, purpose: e.target.value })} /><input placeholder="Contact number" value={form.number} onChange={(e) => setForm({ ...form, number: e.target.value })} required /><select value={form.number_type} onChange={(e) => setForm({ ...form, number_type: e.target.value })}><option value="whatsapp">WhatsApp</option><option value="botim">Botim</option></select><div className="row-actions"><button className="btn">{form.id ? "Update leader" : "Add admin"}</button>{form.id && <button className="btn ghost" type="button" onClick={() => setForm(empty)}>Cancel</button>}</div></form><div className="stats">{rows.map((c) => <div className="stat" key={c.id}><b>{c.name}</b><div>{c.number_type || "whatsapp"} · {c.whatsapp}</div><div className="sub">{c.purpose || c.role}</div><div className="sub">{c.note}</div><div className="row-actions"><button className="btn small" type="button" onClick={() => edit(c)}>Edit</button><button className="btn ghost small" type="button" onClick={async () => { if (window.confirm(`Delete ${c.name}?`)) { try { await api("/api/admin/contacts/save", { method: "POST", body: { id: c.id, delete: "1" } }); toast("Leader removed successfully"); load(); } catch (err) { toast(err.message, "error"); } } }}>Delete</button></div></div>)}</div></>;
+  const edit = (row) => {
+    setForm({
+      id: row.id,
+      name: row.name || "",
+      instructions: row.note || "",
+      purpose: row.purpose || row.role || "",
+      whatsapp: row.whatsapp || "",
+      botim: row.botim || "",
+    });
+    setIcons({ whatsapp_icon: null, botim_icon: null });
+  };
+  return <>
+    <h1>Contact Us</h1>
+    <form className="stack stat contact-admin-form" onSubmit={save}>
+      <input placeholder="Admin name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+      <input placeholder="Admin purpose" value={form.purpose} onChange={(e) => setForm({ ...form, purpose: e.target.value })} />
+      <input placeholder="Instructions" value={form.instructions} onChange={(e) => setForm({ ...form, instructions: e.target.value })} />
+      <label>WhatsApp number<input placeholder="WhatsApp number" value={form.whatsapp} onChange={(e) => setForm({ ...form, whatsapp: e.target.value })} /></label>
+      <label>WhatsApp icon<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setIcons({ ...icons, whatsapp_icon: e.target.files[0] || null })} /></label>
+      <label>Botim number<input placeholder="Botim number" value={form.botim} onChange={(e) => setForm({ ...form, botim: e.target.value })} /></label>
+      <label>Botim icon<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setIcons({ ...icons, botim_icon: e.target.files[0] || null })} /></label>
+      <div className="row-actions">
+        <button className="btn">{form.id ? "Update admin" : "Add admin"}</button>
+        {form.id && <button className="btn ghost" type="button" onClick={() => { setForm(empty); setIcons({ whatsapp_icon: null, botim_icon: null }); }}>Cancel</button>}
+      </div>
+    </form>
+    <div className="stats contact-admin-cards">{rows.map((c) => <div className="stat" key={c.id}>
+      <b>{c.name}</b>
+      {c.whatsapp && <div className="contact-admin-method">{c.whatsapp_icon && <img src={c.whatsapp_icon} alt="" />}WhatsApp · {c.whatsapp}</div>}
+      {c.botim && <div className="contact-admin-method">{c.botim_icon && <img src={c.botim_icon} alt="" />}Botim · {c.botim}</div>}
+      <div className="sub">{c.purpose || c.role}</div><div className="sub">{c.note}</div>
+      <div className="row-actions">
+        <button className="btn small" type="button" onClick={() => edit(c)}>Edit</button>
+        <button className="btn ghost small" type="button" onClick={async () => { if (window.confirm(`Delete ${c.name}?`)) { try { await api("/api/admin/contacts/save", { method: "POST", body: { id: c.id, delete: "1" } }); toast("Leader removed successfully"); load(); } catch (err) { toast(err.message, "error"); } } }}>Delete</button>
+      </div>
+    </div>)}</div>
+  </>;
 }
 export function Levels() {
   const data = useLoad("/api/admin/levels");

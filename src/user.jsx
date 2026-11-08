@@ -817,6 +817,11 @@ const TITLE_EMOJI = [
   ["rose", "🌹"], ["hibiscus", "🌺"], ["lotus", "🪷"], ["lavender", "🪻"],
   ["jasmine", "💮"], ["orchid", "🌸"], ["lily", "🌸"], ["iris", "💮"],
   ["peony", "🌸"], ["blossom", "🌸"], ["cherry", "🌸"],
+  ["anemone", "🌺"], ["aster", "🌼"], ["buttercup", "🌼"], ["cosmos", "🌸"],
+  ["foxglove", "🌷"], ["geranium", "🌺"], ["hollyhock", "🌺"], ["hydrangea", "💠"],
+  ["larkspur", "💜"], ["morning glory", "💙"], ["petunia", "🌺"], ["phlox", "🌸"],
+  ["sweet pea", "🌸"], ["yarrow", "🌼"], ["calendula", "🏵️"], ["chrysanthemum", "🌼"],
+  ["forget-me-not", "💠"], ["gentian", "💙"],
 ];
 
 function emojiFor(title, kind) {
@@ -1640,7 +1645,7 @@ export function Rewards() {
         <div>
           <span className="client-pill">Current Level</span>
           <h2>Bloom Level {data.level || 0}</h2>
-          <p>{data.next_level ? "You're growing beautifully!" : "Level 8 complete."}</p>
+          <p>{data.next_level ? "You're growing beautifully!" : `Level ${data.level || 0} complete.`}</p>
         </div>
         <aside>
           <p><i>👥</i> Total Referral <b>{home.data.team_total || 0}</b></p>
