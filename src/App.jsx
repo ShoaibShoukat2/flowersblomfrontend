@@ -1,7 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { savedUser } from "./api";
 import { AdminAccount, AdminHome, AdminShell, Analytics, Channels, Contacts, Deposits, Gateways, Leaderboard, Levels, Referrals, Rejected, Settings, TodayUsers, TodayWithdrawals, Transactions as AdminTransactions, Upgrades, UserDetail, UserTeam, UserTransactions, UserWithdrawals, Users, Withdrawals } from "./admin";
-import { Channels as UserChannels, Contact, Dashboard, Deposit, Impersonate, Login, Register, Rewards as UserRewards, Team, Transactions, UserShell, Wallet, Withdraw, Work } from "./user";
+import { BloomPreview, Channels as UserChannels, Contact, Dashboard, Deposit, Impersonate, Login, Register, Rewards as UserRewards, Team, Transactions, UserShell, Wallet, Withdraw, Work } from "./user";
 
 function Guard({ role, children }) {
   const user = savedUser();
@@ -12,6 +12,7 @@ function Guard({ role, children }) {
 export default function App() {
   return (
     <Routes>
+      <Route path="/preview-bloom" element={<BloomPreview />} />
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />

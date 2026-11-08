@@ -67,21 +67,6 @@ function NavIcon({ name }) {
   );
 }
 
-const quickLinks = [
-  ["/admin", "home", "Home", ""],
-  ["/admin/deposits", "dot", "Requests", "deposits"],
-  ["/admin/withdrawals", "down", "Withdraw", "withdrawals"],
-  ["/admin/upgrades", "up", "Upgrade", "upgrades"],
-  ["/admin/users", "users", "Users", ""],
-  ["/admin/today-users", "check", "Today", ""],
-  ["/admin/today-withdrawals", "check", "Paid", ""],
-  ["/admin/analytics", "chart", "Earnings", ""],
-  ["/admin/gateways", "card", "Accounts", ""],
-  ["/admin/analytics", "chart", "Earnings", ""],
-  ["/admin/rejected", "x", "Rejected", ""],
-  ["/admin/leaderboard", "trophy", "Ranks", ""],
-];
-
 function pageJumps(pathname) {
   if (pathname.startsWith("/admin/withdrawals") || pathname.startsWith("/admin/today-withdrawals")) {
     return [
@@ -157,16 +142,33 @@ function NavLinks({ onPick, counts }) {
   ));
 }
 
+function adminListPath(pathname) {
+  return pathname.startsWith("/admin") && !/^\/admin\/users\/\d+/.test(pathname);
+}
+
 export function AdminShell({ children }) {
   const [open, setOpen] = useState(false);
   const [counts, setCounts] = useState({ deposits: 0, withdrawals: 0, upgrades: 0 });
   const [toasts, setToasts] = useState([]);
-  const navigate = useNavigate();
-  const { pathname } = useLocation();
+  const location = useLocation();
+  const pathname = location.pathname;
   const refreshCounts = () => api("/api/admin/summary").then((data) => {
     setCounts({ deposits: data.pending_deposits || 0, withdrawals: data.pending_withdrawals || 0, upgrades: data.pending_upgrades || 0 });
   }).catch(() => {});
   useEffect(() => { refreshCounts(); }, [pathname]);
+  useEffect(() => {
+    const path = `${location.pathname}${location.search}`;
+    if (!adminListPath(location.pathname)) return undefined;
+    const remember = () => sessionStorage.setItem("admin-list-return", JSON.stringify({ path, scroll: window.scrollY || 0 }));
+    remember();
+    window.addEventListener("scroll", remember, { passive: true });
+    const saved = JSON.parse(sessionStorage.getItem("admin-list-scroll") || "null");
+    if (saved && saved.path === path) window.requestAnimationFrame(() => window.scrollTo(0, saved.scroll || 0));
+    return () => {
+      sessionStorage.setItem("admin-list-scroll", JSON.stringify({ path, scroll: window.scrollY || 0 }));
+      window.removeEventListener("scroll", remember);
+    };
+  }, [location.pathname, location.search]);
   const pushToast = (text, kind = "ok") => {
     const id = `${Date.now()}-${Math.random()}`;
     setToasts((current) => [...current.slice(-3), { id, text, kind }]);
@@ -188,21 +190,6 @@ export function AdminShell({ children }) {
       <div className="admin-col">
         <header className="admin-top">
           <button className="burger" aria-label="Open admin menu" onClick={() => setOpen(true)}><span /><span /><span /></button>
-          <SearchBox
-            placeholder="Search name, email, or phone"
-            suggestPath="/api/admin/users?status=all"
-            onSearch={(value) => { setOpen(false); navigate(`/admin/users?status=all&q=${encodeURIComponent(value)}`); }}
-            onPick={(row) => { setOpen(false); navigate(`/admin/users/${row.id}`); }}
-          />
-          <nav className="quick-rail" aria-label="Admin features">
-            {quickLinks.map(([to, icon, label, countKey]) => (
-              <NavLink key={to} to={to} end={to === "/admin"}>
-                <NavIcon name={icon} />
-                <span>{label}</span>
-                {countKey && counts[countKey] > 0 && <i className="rail-count">{counts[countKey]}</i>}
-              </NavLink>
-            ))}
-          </nav>
         </header>
         <button className={open ? "drawer-backdrop on" : "drawer-backdrop"} aria-label="Close menu" onClick={() => setOpen(false)} />
         <aside className={open ? "admin-drawer on" : "admin-drawer"}>
@@ -228,6 +215,23 @@ export function AdminShell({ children }) {
   );
 }
 
+function AdminBack({ fallback = "/admin/users?status=all", label = "Back" }) {
+  const navigate = useNavigate();
+  return (
+    <button
+      className="back-link"
+      type="button"
+      onClick={() => {
+        const saved = JSON.parse(sessionStorage.getItem("admin-list-return") || "null");
+        if (saved?.path && saved.path !== `${window.location.pathname}${window.location.search}`) navigate(saved.path);
+        else navigate(fallback);
+      }}
+    >
+      ← {label}
+    </button>
+  );
+}
+
 function EmailLink({ email, userId }) {
   if (!email || email === "—") return "—";
   const to = userId ? `/admin/users/${userId}` : `/admin/users?status=all&q=${encodeURIComponent(email)}`;
@@ -238,9 +242,75 @@ function fieldText(label, value, detail) {
   const text = value || "—";
   if (!String(text).includes("@")) return text;
   const name = String(label || "").toLowerCase();
+  if (name.includes("upline") && name.includes("email")) return <EmailLink email={text} userId={detail.upliner?.id} />;
   if (!name.includes("email") && name !== "from") return text;
   const userId = name === "from" ? detail.sourceUserId : (detail.userId || detail.account?.id);
   return <EmailLink email={text} userId={userId} />;
+}
+
+function statusWord(value) {
+  const text = String(value || "").trim();
+  if (!text) return "—";
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+function WithdrawBrief({ detail }) {
+  const referral = detail.referral;
+  const team = detail.team || {};
+  return (
+    <div className="wd-body">
+      <section>
+        <h3>User account</h3>
+        <div className="wd-grid">
+          <div><span>Current plan</span><b>{detail.plan || "—"}</b></div>
+          <div><span>Account joining date</span><b>{detail.joined || "—"}</b></div>
+          <div><span>Withdraw request</span><b>{detail.date || "—"}</b></div>
+        </div>
+      </section>
+      <section>
+        <h3>Approved team</h3>
+        <div className="wd-grid">
+          <div><span>Total approved team</span><b>{detail.loading ? "…" : (team.approved ?? detail.teamCount ?? "—")}</b></div>
+          <div><span>Paid team</span><b>{detail.loading ? "…" : (team.paid ?? "—")}</b></div>
+          <div><span>Unpaid team</span><b>{detail.loading ? "…" : (team.unpaid ?? "—")}</b></div>
+        </div>
+      </section>
+      <section>
+        <h3>User information</h3>
+        <div className="wd-grid">
+          <div><span>Name</span><b>{detail.name || "—"}</b></div>
+          <div><span>Email</span><b><EmailLink email={detail.email} userId={detail.userId} /></b></div>
+        </div>
+      </section>
+      <section>
+        <h3>Referral by</h3>
+        {referral ? (
+          <div className="wd-grid">
+            <div><span>Name</span><b>{referral.name || "—"}</b></div>
+            <div><span>Email</span><b><EmailLink email={referral.email} userId={referral.id} /></b></div>
+          </div>
+        ) : (
+          <p className="sub">{detail.loading ? "Loading upline..." : "Joined directly"}</p>
+        )}
+      </section>
+      <section>
+        <h3>Withdraw Details</h3>
+        <div className="wd-grid">
+          <div><span>Payment Method</span><b>{detail.method || "—"}</b></div>
+          <div><span>Account Name</span><b>{detail.accountName || "—"}</b></div>
+          <div><span>Account Number</span><b>{detail.accountNumber || "—"}</b></div>
+          <div><span>Withdrawal Amount</span><b>{detail.amount || "—"}</b></div>
+          <div><span>Withdrawal Status</span><b className={`wd-status ${detail.status || ""}`}>{statusWord(detail.status)}</b></div>
+        </div>
+      </section>
+      {detail.status === "rejected" && (
+        <section className="prior-reason">
+          <h3>Rejection Reason</h3>
+          <p>{String(detail.rejectReason || "").trim() || "No rejection reason available"}</p>
+        </section>
+      )}
+    </div>
+  );
 }
 
 function DetailModal({ detail, onClose, onAction }) {
@@ -259,9 +329,12 @@ function DetailModal({ detail, onClose, onAction }) {
     };
   }, [onClose]);
   if (!detail) return null;
+  const reviewAgain = detail.kind === "deposit" && detail.status === "rejected";
+  const allowReject = Boolean(detail.pending) && (!detail.reapprove || reviewAgain);
+  const cardClass = detail.compact ? "modal-card compact-withdraw" : (detail.team || detail.sheet ? "modal-card wide" : "modal-card");
   return (
     <div className="modal-back" onClick={onClose}>
-      <div className={detail.team || detail.sheet ? "modal-card wide" : "modal-card"} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+      <div className={cardClass} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <div>
             <h2>{detail.title}</h2>
@@ -269,9 +342,11 @@ function DetailModal({ detail, onClose, onAction }) {
           </div>
           <button className="modal-x" type="button" onClick={onClose} aria-label="Close">×</button>
         </div>
+        {detail.compact ? <WithdrawBrief detail={detail} /> : (
+          <>
         <SlipImage src={detail.image} />
         <div className="modal-fields">
-          {detail.fields.map(([label, value]) => <div key={label}><span>{label}</span><b>{fieldText(label, value, detail)}</b></div>)}
+          {(detail.fields || []).map(([label, value]) => <div key={label}><span>{label}</span><b>{fieldText(label, value, detail)}</b></div>)}
         </div>
         {detail.loading && <p className="sub">Loading account, upliner, and team...</p>}
         {detail.account && (
@@ -356,6 +431,14 @@ function DetailModal({ detail, onClose, onAction }) {
             {detail.team.total > detail.team.shown && <p className="sub">Showing {detail.team.shown} of {detail.team.total} direct members.</p>}
           </section>
         )}
+          </>
+        )}
+        {reviewAgain && (
+          <section className="review-block prior-reason">
+            <h3>Previous Rejection Reason</h3>
+            <p>{String(detail.rejectReason || "").trim() || "No previous rejection reason available"}</p>
+          </section>
+        )}
         {detail.pending && (
           <div className="stack">
             {detail.kind === "upgrade" && !detail.reapprove && (
@@ -366,7 +449,7 @@ function DetailModal({ detail, onClose, onAction }) {
                 </select>
               </label>
             )}
-            {!detail.reapprove && (
+            {allowReject && (
               <>
                 <select value={reason} onChange={(e) => setReason(e.target.value)}>
                   <option value="">Rejection reason</option>
@@ -380,8 +463,13 @@ function DetailModal({ detail, onClose, onAction }) {
             )}
             <div className="row-actions">
               <button className="btn small" type="button" onClick={() => onAction(detail.id, "approve", { pay_commission: pay === "yes" })}>{detail.reapprove ? "Re-Approve" : "Approve"}</button>
-              {!detail.reapprove && <button className="btn ghost small" type="button" onClick={() => { if (!chosen) { toast("A rejection reason is required.", "error"); return; } onAction(detail.id, "reject", { reason: chosen }); }}>Reject</button>}
+              {allowReject && <button className="btn ghost small" type="button" onClick={() => { if (!chosen) { toast("A rejection reason is required.", "error"); return; } onAction(detail.id, "reject", { reason: chosen }); }}>Reject</button>}
             </div>
+          </div>
+        )}
+        {detail.settled && (
+          <div className="row-actions">
+            <button className="btn small" type="button" disabled>Approved</button>
           </div>
         )}
       </div>
@@ -453,9 +541,19 @@ function SearchBox({ value = "", onSearch, onPick, placeholder, suggestPath }) {
     if (onPick) onPick(row);
     else onSearch(row.email || "");
   };
+  const clearSearch = () => {
+    setDraft("");
+    setTips([]);
+    setOpen(false);
+    setBusy(false);
+    onSearch("");
+  };
   return (
     <form className="search-row" onSubmit={(e) => { e.preventDefault(); setOpen(false); onSearch(draft.trim()); }}>
-      <input value={draft} placeholder={placeholder} aria-label={placeholder || "Search"} onChange={(e) => { setDraft(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} onBlur={() => window.setTimeout(() => setOpen(false), 180)} />
+      <div className="search-field">
+        <input value={draft} placeholder={placeholder} aria-label={placeholder || "Search"} onChange={(e) => { setDraft(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} onBlur={() => window.setTimeout(() => setOpen(false), 180)} />
+        {draft ? <button className="search-clear" type="button" aria-label="Clear search" onMouseDown={(e) => e.preventDefault()} onClick={clearSearch}>×</button> : null}
+      </div>
       <button className="btn small search-go" type="submit" aria-label="Search"><NavIcon name="search" /><span>Search</span></button>
       {open && draft.trim().length >= 2 && (
         <div className="suggest" role="listbox">
@@ -532,14 +630,11 @@ export function AdminHome() {
           <span className="chev" aria-hidden="true">›</span>
         </Link>
       </div>
-      <article className="home-row withdraw">
-        <Link className="home-row-main" to="/admin/withdrawals?wstatus=approved">
-          <span className="home-ico rose"><NavIcon name="wallet" /></span>
-          <span><span className="home-label">Total Withdraw</span><b>Rs {rs(money.withdrawn)}</b></span>
-        </Link>
-        <Link className="pending-pill" to="/admin/withdrawals?wstatus=pending">Pending</Link>
-        <Link className="chev" to="/admin/withdrawals?wstatus=approved" aria-label="Open withdrawals">›</Link>
-      </article>
+      <Link className="home-row total-withdraw" to="/admin/withdrawals?wstatus=approved">
+        <span className="home-ico rose"><NavIcon name="wallet" /></span>
+        <span><span className="home-label">Total Withdraw</span><b>Rs {rs(money.withdrawn)}</b></span>
+        <span className="chev" aria-hidden="true">›</span>
+      </Link>
       <Link className="home-row today-users" to="/admin/today-users">
         <span className="home-ico green"><NavIcon name="check" /></span>
         <span><span className="home-label">Today Approved Users</span><b>{Number(money.approved_users_today || 0).toLocaleString("en-US")}</b></span>
@@ -562,23 +657,23 @@ export function AdminHome() {
           <p>Each source is counted on its own. Plan payments are not mixed into these totals.</p>
         </div>
       </section>
-      <div className="earn-grid">
-        <Link className="earn-card task" to="/admin/transactions?category=ads&date=today">
+      <div className="earn-rows">
+        <Link className="home-row earn-line task" to="/admin/transactions?category=ads&date=today">
           <span className="home-ico violet"><NavIcon name="layers" /></span>
           <span><span className="home-label">Total Task Earnings</span><b>Rs {rs(money.task)}</b><small className="today-line">Today Rs {rs(money.task_today)}</small></span>
           <span className="chev" aria-hidden="true">›</span>
         </Link>
-        <Link className="earn-card add" to="/admin/transactions?category=manual_add&date=today">
+        <Link className="home-row earn-line add" to="/admin/transactions?category=manual_add&date=today">
           <span className="home-ico leaf"><NavIcon name="plus" /></span>
           <span><span className="home-label">Manual Additions</span><b>Rs {rs(money.manual_add)}</b><small className="today-line">Today Rs {rs(money.manual_add_today)}</small></span>
           <span className="chev" aria-hidden="true">›</span>
         </Link>
-        <Link className="earn-card sub" to="/admin/transactions?category=manual_sub&date=today">
+        <Link className="home-row earn-line sub" to="/admin/transactions?category=manual_sub&date=today">
           <span className="home-ico amber"><NavIcon name="minus" /></span>
           <span><span className="home-label">Manual Subtractions</span><b>Rs {rs(money.manual_sub)}</b><small className="today-line">Today Rs {rs(money.manual_sub_today)}</small></span>
           <span className="chev" aria-hidden="true">›</span>
         </Link>
-        <Link className="earn-card ref" to="/admin/transactions?category=referral&date=today">
+        <Link className="home-row earn-line ref" to="/admin/transactions?category=referral&date=today">
           <span className="home-ico blue"><NavIcon name="users" /></span>
           <span><span className="home-label">Referral Commissions</span><b>Rs {rs(money.referral)}</b><small className="today-line">Today Rs {rs(money.referral_today)}</small></span>
           <span className="chev" aria-hidden="true">›</span>
@@ -677,7 +772,15 @@ export function Users({ status = "approved", title = "Approved users", searchabl
       <h1>{searchable ? "Users" : title}</h1>
       {searchable && (
         <>
-          <SearchBox value={q} placeholder="Search by full email" suggestPath={`/api/admin/users?status=${encodeURIComponent(current)}`} onSearch={commit} onPick={(row) => navigate(`/admin/users/${row.id}`)} />
+          <SearchBox value={q} placeholder="Search by full email" suggestPath={`/api/admin/users?status=${encodeURIComponent(current)}`} onSearch={commit} onPick={(row) => {
+            const next = new URLSearchParams(params);
+            if (row.email) next.set("q", row.email);
+            const path = `${window.location.pathname}?${next.toString()}`;
+            const place = { path, scroll: window.scrollY || 0 };
+            sessionStorage.setItem("admin-list-return", JSON.stringify(place));
+            sessionStorage.setItem("admin-list-scroll", JSON.stringify(place));
+            navigate(`/admin/users/${row.id}`);
+          }} />
           <div className="filters">
             {[["all", "All"], ["approved", "Approved"], ["pending", "Pending"], ["rejected", "Rejected"]].map(([value, label]) => (
               <button key={value} className={current === value ? "chip on" : "chip"} type="button" onClick={() => setFilter(value)}>{label}</button>
@@ -739,16 +842,42 @@ function SlipImage({ src }) {
   );
 }
 
-function paymentDetail(row, kind) {
+function payerParts(row) {
+  const named = String(row.sender_name || "").trim();
+  const raw = String(row.sender || "").trim();
+  if (named) return { name: named, number: raw || "—" };
+  if (raw.includes(" · ")) {
+    const [name, number] = raw.split(" · ");
+    return { name: name || "—", number: number || "—" };
+  }
+  return { name: "—", number: raw || "—" };
+}
+
+function paymentDetail(row, kind, options = {}) {
   const amount = `Rs ${row.amount}`;
   const when = row.created_at ? new Date(row.created_at).toLocaleString() : "—";
   const upliner = row.upliner ? row.upliner.full_name : "Joined directly";
+  const payer = payerParts(row);
   const moneyRows = [["Amount", amount], ["Charge", "Rs 0.00"], ["After charge", amount], ["Rate", "1 Rs = 1.00 PKR"], ["Payable", amount], ["Status", row.status]];
   let title = "Payment slip";
   let fields = [["Name", row.full_name], ["Email", row.email]];
-  if (kind === "upgrade") {
+  if (kind === "deposit" && options.brief) {
+    title = "Payment details";
+    fields = [
+      ["Date & Time", when],
+      ["Email", row.email || "—"],
+      ["Sender Name", payer.name],
+      ["Sender Number", payer.number],
+      ["Transaction Number", row.trx_no || "—"],
+      ["User Name", row.full_name || "—"],
+      ["Username", row.username || "—"],
+      ["User Code", row.code || "—"],
+      ["Upline Name", upliner],
+      ["Upline Email", row.upliner?.email || "—"],
+    ];
+  } else if (kind === "upgrade") {
     title = "Plan upgrade";
-    fields.push(["Upliner", upliner], ["Username", row.username || "—"], ["Email", row.email], ["Current plan", row.from_plan], ["Requested plan", row.to_plan], ["Old paid amount", row.old_paid ? `Rs ${row.old_paid}` : "—"], ["Additional payment", row.additional ? `Rs ${row.additional}` : amount], ["Method", row.method || "—"], ["Transaction number", row.sender || "—"], ["Sender name", row.sender || "—"], ["Status", row.status], ["Reason", row.reject_reason || "—"]);
+    fields.push(["Upliner", upliner], ["Username", row.username || "—"], ["Email", row.email], ["Current plan", row.from_plan], ["Requested plan", row.to_plan], ["Old paid amount", row.old_paid ? `Rs ${row.old_paid}` : "—"], ["Additional payment", row.additional ? `Rs ${row.additional}` : amount], ["Method", row.method || "—"], ["Transaction number", row.trx_no || "—"], ["Sender name", row.sender_name || payer.name], ["Sender number", payer.number], ["Status", row.status], ["Reason", row.reject_reason || "—"]);
   } else if (kind === "withdraw") {
     title = `Withdraw via ${row.method || "account"}`;
     fields = [
@@ -764,14 +893,14 @@ function paymentDetail(row, kind) {
       ["Upliner", upliner], ["Plan", row.plan || "—"], ...moneyRows,
     ];
   }
-  return { id: row.id, title, subtitle: row.email, image: row.screenshot, fields, sheet: kind !== "upgrade", kind, pending: row.status !== "approved", reapprove: row.status === "rejected" };
+  return { id: row.id, title, subtitle: options.brief ? "" : row.email, image: row.screenshot, fields, sheet: kind !== "upgrade", kind, pending: row.status !== "approved", reapprove: row.status === "rejected", status: row.status || "", rejectReason: row.reject_reason || "", upliner: row.upliner || null };
 }
 
 function SlipView({ onOpen }) {
   return <button type="button" className="view-btn" onClick={onOpen}>View slip</button>;
 }
 
-function ProfileTools({ id, banned, flower }) {
+function ProfileTools({ id, banned }) {
   const toast = useContext(toastContext);
   const [box, setBox] = useState("");
   const [amount, setAmount] = useState("");
@@ -811,9 +940,8 @@ function ProfileTools({ id, banned, flower }) {
     ["password", "Change Password"],
   ];
   return (
-    <section className="info-sheet">
-      <h2>Profile actions</h2>
-      <p className="sub">Flower earnings Rs {rs(flower || 0)}</p>
+      <section className="info-sheet action-sheet">
+      <h2 className="sheet-title">Profile actions</h2>
       <div className="action-row">
         {actions.map(([key, label]) => (
           <button key={key} type="button" className="btn small" onClick={() => setBox(key)}>{label}</button>
@@ -855,15 +983,46 @@ function ProfileTools({ id, banned, flower }) {
   );
 }
 
-function TeamRows({ rows }) {
-  const navigate = useNavigate();
+function TeamRows({ rows, start = 0 }) {
+  const [shot, setShot] = useState(null);
   return (
     <>
-      <div className="table-wrap desktop-table"><table><thead><tr><th>#</th><th>Name</th><th>Plan</th><th>Date</th><th>Payment</th><th></th></tr></thead><tbody>
-        {rows.map((m, i) => <tr className="click-row" key={m.id} onClick={() => navigate(`/admin/users/${m.id}`)}><td>{i + 1}</td><td><b>{m.full_name}</b><div className="sub"><EmailLink email={m.email} userId={m.id} /></div></td><td><PlanBadge name={m.plan} color={m.plan_color} text={m.plan_text} /></td><td>{whenText(m.date)}</td><td>{m.paid ? "Paid" : "Unpaid"}</td><td><Link to={`/admin/users/${m.id}`} onClick={(e) => e.stopPropagation()}>Details</Link></td></tr>)}
+      <div className="table-wrap team-scroll"><table className="team-table"><thead><tr><th>#</th><th>User</th><th>Plan</th><th>Date & Time</th><th></th></tr></thead><tbody>
+        {rows.map((m, i) => <tr key={m.id}><td>{start + i + 1}</td><td><b>{m.full_name}</b><div className="team-mail"><EmailLink email={m.email} userId={m.id} /></div></td><td><PlanBadge name={m.plan} color={m.plan_color} text={m.plan_text} /></td><td>{whenText(m.date)}</td><td><button className="view-btn" type="button" onClick={() => setShot(m.screenshot || "")}>View Details</button></td></tr>)}
       </tbody></table></div>
-      <div className="cards">{rows.map((m) => <div className="lb-card" key={m.id}><b>{m.full_name}</b><div className="sub"><EmailLink email={m.email} userId={m.id} /></div><PlanBadge name={m.plan} color={m.plan_color} text={m.plan_text} /><div className="sub">{m.paid ? "Paid" : "Unpaid"} · {whenText(m.date)}</div><Link className="view-btn" to={`/admin/users/${m.id}`}>Open details</Link></div>)}</div>
+      {shot !== null && (
+        <div className="modal-back" onClick={() => setShot(null)}>
+          <div className="modal-card shot-only" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-x" type="button" onClick={() => setShot(null)} aria-label="Close">×</button>
+            <SlipImage src={shot} />
+          </div>
+        </div>
+      )}
     </>
+  );
+}
+
+function ProfileTeam({ id, paidCount, unpaidCount }) {
+  const [paid, setPaid] = useState("1");
+  const data = useLoad(`/api/admin/users/${id}/team?paid=${paid}&page=1`);
+  const rows = rowsOf(data);
+  return (
+    <section className="info-sheet team-sheet">
+      <h2 className="sheet-title">Team information</h2>
+      <div className="team-split">
+        <button type="button" className={paid === "1" ? "on" : ""} onClick={() => setPaid("1")}>
+          <span>Paid Users</span>
+          <b>{paidCount ?? data?.paid ?? 0}</b>
+        </button>
+        <button type="button" className={paid === "0" ? "on" : ""} onClick={() => setPaid("0")}>
+          <span>Unpaid Users</span>
+          <b>{unpaidCount ?? data?.unpaid ?? 0}</b>
+        </button>
+      </div>
+      <TeamRows rows={rows} />
+      {data && rows.length === 0 && <p>No {paid === "1" ? "paid" : "unpaid"} team members.</p>}
+      <Link className="btn small view-all" to={`/admin/users/${id}/team?paid=${paid}`}>View all team</Link>
+    </section>
   );
 }
 
@@ -877,31 +1036,35 @@ export function UserDetail() {
   const profile = data.profile || {};
   const banned = profile.banned || profile.status === "banned";
   const slips = data.deposits || [];
-  const team = data.team || [];
   return (
     <>
-      <Link className="back-link" to="/admin/users?status=all">← Users</Link>
+      <AdminBack fallback="/admin/users?status=all" label="Back" />
       <h1>User profile</h1>
       <p className="sub">{profile.full_name || data.user.full_name}</p>
       {banned && <div className="ban-banner">Banned account{profile.ban_reason ? ` — ${profile.ban_reason}` : ""}</div>}
       <div className="profile-board">
         <div className="profile-card balance"><span>Current Balance</span><b>Rs {rs(profile.balance || data.user.balance)}</b><em>Wallet</em></div>
-        <button type="button" className="profile-card deposits" onClick={() => setSlipsOpen(true)}><span>Total Deposit</span><b>Rs {rs(profile.deposits || 0)}</b><em>Open slips</em></button>
+        <button type="button" className="profile-card deposits" onClick={() => setSlipsOpen(true)}><span>Current Plan</span><b>Rs {rs(profile.plan_amount || 0)}</b><em>{profile.plan || "No plan"}</em></button>
         <Link className="profile-card withdrawals" to={`/admin/users/${id}/withdrawals`}><span>Total Withdraw</span><b>Rs {rs(profile.withdrawals || 0)}</b><em>History</em></Link>
         <Link className="profile-card tx" to={`/admin/users/${id}/transactions`}><span>Transactions</span><b>{Number(profile.transactions || 0).toLocaleString("en-US")}</b><em>Full history</em></Link>
       </div>
-      <ProfileTools id={id} banned={banned} flower={profile.flower_balance} />
-      <section className="info-sheet">
-        <h2>User information</h2>
+      <ProfileTools id={id} banned={banned} />
+      <section className="info-sheet user-sheet">
+        <h2 className="sheet-title">User information</h2>
         <div><span>Name</span><b>{profile.full_name || data.user.full_name || "—"}</b></div>
         <div><span>Email</span><b className="break">{profile.email || data.user.email}</b></div>
         <div><span>Mobile number</span><b>{profile.phone || data.user.phone || "—"}</b></div>
         <div><span>Current level</span><b>Level {profile.level ?? data.user.level}</b></div>
         <div><span>Approved team</span><b>{profile.approved_team ?? profile.paid_team ?? 0}</b></div>
-        <div><span>Current plan</span><b>{profile.plan || data.user.plan || "No plan"}</b></div>
+        <div><span>Current plan</span><b>{profile.plan || data.user.plan || "No plan"} · Rs {rs(profile.plan_amount || 0)}</b></div>
+        <div><span>Account Approved Date</span><b>{profile.approved_at ? whenText(profile.approved_at) : "Approval Date Not Available"}</b></div>
       </section>
-      <section className="info-sheet">
-        <h2>Upline information</h2>
+      <section className="info-sheet payslip">
+        <h2 className="sheet-title">Payment screenshot</h2>
+        <div className="profile-slip"><SlipImage src={profile.payment_screenshot || slips[0]?.screenshot} /></div>
+      </section>
+      <section className="info-sheet upline-sheet">
+        <h2 className="sheet-title">Upline information</h2>
         {data.upliner ? (
           <>
             <div><span>Name</span><b>{data.upliner.full_name}</b></div>
@@ -910,8 +1073,8 @@ export function UserDetail() {
           </>
         ) : <p>This account joined directly.</p>}
       </section>
-      <section className="info-sheet" id="user-slips">
-        <h2>Deposit slip</h2>
+      <section className="info-sheet slip-sheet" id="user-slips">
+        <h2 className="sheet-title">Deposit slip</h2>
         {slips.length === 0 && <p>No deposit yet.</p>}
         {slips.map((d) => (
           <div key={d.id}>
@@ -920,21 +1083,12 @@ export function UserDetail() {
           </div>
         ))}
       </section>
-      <section>
-        <h2>Team information</h2>
-        <div className="team-counts">
-          <Link to={`/admin/users/${id}/team?paid=1`}>Paid users {profile.paid_team ?? 0}</Link>
-          <Link to={`/admin/users/${id}/team?paid=0`}>Unpaid users {profile.unpaid_team ?? 0}</Link>
-        </div>
-        <TeamRows rows={team} />
-        {team.length === 0 && <p>No team members yet.</p>}
-        <Link className="btn small view-all" to={`/admin/users/${id}/team`}>View all team</Link>
-      </section>
+      <ProfileTeam id={id} paidCount={profile.paid_team} unpaidCount={profile.unpaid_team} />
       {slipsOpen && (
         <div className="modal-back" onClick={() => setSlipsOpen(false)}>
           <div className="modal-card" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
             <div className="modal-head">
-              <div><h2>Total deposit</h2><p className="sub">Rs {rs(profile.deposits || 0)}</p></div>
+              <div><h2>Payment records</h2><p className="sub">Current plan Rs {rs(profile.plan_amount || 0)}</p></div>
               <button className="modal-x" type="button" onClick={() => setSlipsOpen(false)} aria-label="Close">×</button>
             </div>
             {slips.length === 0 && <p>No deposit slip yet.</p>}
@@ -972,9 +1126,10 @@ export function UserTransactions() {
     ["ads_earn", "Ads Earnings"],
     ["task", "Task Earnings"],
     ["flower", "Flower Earnings"],
-    ["balance_add", "Balance Add"],
+    ["bonus", "Bonus Add"],
     ["balance_sub", "Balance Subtract"],
     ["direct", "Direct Referral Commission"],
+    ["upgrade_referral", "Referral Commission from Plan Upgrade"],
     ["indirect_1", "Indirect Traffic Commission — Level 1"],
     ["indirect_2", "Indirect Traffic Commission — Level 2"],
   ];
@@ -992,9 +1147,9 @@ export function UserTransactions() {
         <input type="date" value={day} aria-label="One date" onChange={(e) => setQuery({ date: e.target.value, start: "", end: "" })} />
       </div>
       <div className="table-wrap desktop-table"><table><thead><tr><th>Detail</th><th>Amount</th><th>When</th></tr></thead><tbody>
-        {rows.map((t) => <tr key={t.id}><td><b>{t.title}</b><div className="sub">{t.trx_type === "-" ? "Debit" : "Credit"} · {t.remark || "entry"}{t.plan_name ? ` · ${t.plan_name}` : ""}</div><div className="sub">User <EmailLink email={t.user_email} userId={t.user_id} /></div>{t.source_email && <div className="sub">Related <EmailLink email={t.source_email} userId={t.source_user_id} /></div>}</td><td>Rs {t.amount}</td><td>{whenText(t.created_at)}</td></tr>)}
+        {rows.map((t) => <tr key={t.id}><td><b>{t.title}</b><div className="sub">{t.trx_type === "-" ? "Debit" : "Credit"} · {t.remark || "entry"}{t.plan_name && t.remark !== "balance_add" && t.remark !== "signup_bonus" ? ` · ${t.plan_name}` : ""}</div>{t.purpose ? <div className="purpose-tag">Purpose: {t.purpose}</div> : null}<div className="sub">User <EmailLink email={t.user_email} userId={t.user_id} /></div>{t.source_email && <div className="sub">Related <EmailLink email={t.source_email} userId={t.source_user_id} /></div>}</td><td>Rs {t.amount}</td><td>{whenText(t.created_at)}</td></tr>)}
       </tbody></table></div>
-      <div className="cards">{rows.map((t) => <div className="lb-card" key={t.id}><b>{t.title}</b><div>Rs {t.amount} · {t.trx_type === "-" ? "Debit" : "Credit"}</div><div className="sub">{whenText(t.created_at)}</div><div className="sub"><EmailLink email={t.user_email} userId={t.user_id} /></div>{t.source_email && <div className="sub">Related <EmailLink email={t.source_email} userId={t.source_user_id} /></div>}</div>)}</div>
+      <div className="cards">{rows.map((t) => <div className="lb-card" key={t.id}><b>{t.title}</b><div>Rs {t.amount} · {t.trx_type === "-" ? "Debit" : "Credit"}</div>{t.purpose ? <div className="purpose-tag">Purpose: {t.purpose}</div> : null}<div className="sub">{whenText(t.created_at)}</div><div className="sub"><EmailLink email={t.user_email} userId={t.user_id} /></div>{t.source_email && <div className="sub">Related <EmailLink email={t.source_email} userId={t.source_user_id} /></div>}</div>)}</div>
       {data && rows.length === 0 && <p>No records for this filter.</p>}
       <Pager page={data?.page} pages={data?.pages} onPage={(nextPage) => setQuery({ page: String(nextPage), q, category, date: day, start, end })} />
     </>
@@ -1071,7 +1226,7 @@ export function UserTeam() {
         <label>Rejection date <input type="date" value={rejected} onChange={(e) => setQuery({ rejected: e.target.value })} /></label>
       </div>
       {!data && <p>Loading...</p>}
-      <TeamRows rows={rows} />
+      <TeamRows rows={rows} start={(Number(data?.page || page) - 1) * 40} />
       {data && rows.length === 0 && <p>{q ? "No account found" : "No team members for this filter."}</p>}
       <Pager page={data?.page} pages={data?.pages} onPage={(nextPage) => setQuery({ page: String(nextPage), q, paid, plan, approved, rejected })} />
     </>
@@ -1079,25 +1234,54 @@ export function UserTeam() {
 }
 
 export function Leaderboard() {
-  const data = useLoad("/api/admin/leaderboard");
-  const navigate = useNavigate();
-  const [q, setQ] = useState("");
-  const [level, setLevel] = useState("");
-  const [sort, setSort] = useState("earnings");
-  const rows = (data || []).filter((u) => `${u.full_name} ${u.email}`.toLowerCase().includes(q.toLowerCase()) && (!level || String(u.level) === level));
-  rows.sort((a, b) => sort === "level" ? b.level - a.level || Number(b.earnings) - Number(a.earnings) : Number(b.earnings) - Number(a.earnings) || b.level - a.level);
+  const [params, setParams] = useSearchParams();
+  const q = params.get("q") || "";
+  const level = params.get("level") || "";
+  const sort = params.get("sort") || "earnings";
+  const day = params.get("date") || "";
+  const clock = params.get("time") || "";
+  const page = params.get("page") || "1";
+  const data = useLoad(`/api/admin/leaderboard?q=${encodeURIComponent(q)}&level=${encodeURIComponent(level)}&sort=${encodeURIComponent(sort)}&date=${encodeURIComponent(day)}&time=${encodeURIComponent(clock)}&page=${page}`);
+  const patch = (values) => {
+    const next = new URLSearchParams(params);
+    Object.entries(values).forEach(([key, value]) => { if (value) next.set(key, value); else next.delete(key); });
+    if (!("page" in values)) next.delete("page");
+    setParams(next);
+  };
+  const rows = data?.rows || [];
+  const levels = data?.levels || [];
   return (
     <>
       <h1>Leaderboard</h1>
-      <div className="filters">
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name or email" />
-        <select value={level} onChange={(e) => setLevel(e.target.value)}><option value="">All levels</option>{[0, 1, 2, 3, 4, 5, 6, 7, 8].map((n) => <option key={n} value={n}>Level {n}</option>)}</select>
-        <select value={sort} onChange={(e) => setSort(e.target.value)}><option value="earnings">Earnings high to low</option><option value="level">Level high to low</option></select>
+      <div className="level-board">
+        {levels.map((item) => (
+          <button type="button" key={item.level} className={String(level) === String(item.level) ? "on" : ""} onClick={() => patch({ level: String(level) === String(item.level) ? "" : item.level })}>
+            <span>Level {item.level}</span>
+            <b>{item.count}</b>
+          </button>
+        ))}
       </div>
-      <div className="table-wrap desktop-table"><table><thead><tr><th>#</th><th>Name</th><th>Approved team</th><th>Level</th><th>Earnings</th><th>Details</th></tr></thead><tbody>
-        {rows.map((u, i) => <tr className="click-row" key={u.id} onClick={() => navigate(`/admin/users/${u.id}`)}><td>{i + 1}</td><td><Link to={`/admin/users/${u.id}`} onClick={(e) => e.stopPropagation()}><b>{u.full_name}</b></Link><div className="sub"><EmailLink email={u.email} userId={u.id} /></div></td><td>{u.active_team}</td><td>Level {u.level}</td><td>Rs {u.earnings}</td><td><Link to={`/admin/users/${u.id}`} onClick={(e) => e.stopPropagation()}>View details</Link></td></tr>)}
+      <div className="filters">
+        <div className="search-field">
+          <input value={q} onChange={(e) => patch({ q: e.target.value })} placeholder="Search name or email" aria-label="Search name or email" />
+          {q ? <button className="search-clear" type="button" aria-label="Clear search" onClick={() => patch({ q: "" })}>×</button> : null}
+        </div>
+        <select value={level} onChange={(e) => patch({ level: e.target.value })}><option value="">All levels</option>{levels.map((item) => <option key={item.level} value={item.level}>Level {item.level}</option>)}</select>
+        <select value={sort} onChange={(e) => patch({ sort: e.target.value })}>
+          <option value="earnings">Earning high to low</option>
+          <option value="earnings_low">Earning low to high</option>
+          <option value="level">Level high to low</option>
+          <option value="level_low">Level low to high</option>
+        </select>
+        <input type="date" value={day} aria-label="Joining date" onChange={(e) => patch({ date: e.target.value })} />
+        <input type="time" value={clock} aria-label="Joining time" onChange={(e) => patch({ time: e.target.value })} />
+      </div>
+      {!data && <p>Loading...</p>}
+      <div className="table-wrap team-scroll"><table className="team-table"><thead><tr><th>#</th><th>User</th><th>Approved team</th><th>Level</th><th>Earning</th></tr></thead><tbody>
+        {rows.map((u) => <tr key={u.id}><td>{u.serial}</td><td><b>{u.full_name}</b><div className="team-mail"><EmailLink email={u.email} userId={u.id} /></div></td><td>{u.active_team}</td><td>Level {u.level}</td><td>Rs {u.earnings}</td></tr>)}
       </tbody></table></div>
-      <div className="cards">{rows.map((u, i) => <div className="lb-card" key={u.id}><b>#{i + 1} {u.full_name}</b><div className="sub"><EmailLink email={u.email} userId={u.id} /></div><div>Approved team {u.active_team} · Level {u.level}</div><div>Rs {u.earnings}</div><Link className="view-btn" to={`/admin/users/${u.id}`}>View details</Link></div>)}</div>
+      {data && rows.length === 0 && <p>No users for this filter.</p>}
+      <Pager page={data?.page} pages={data?.pages} onPage={(nextPage) => patch({ page: String(nextPage), q, level, sort, date: day, time: clock })} />
     </>
   );
 }
@@ -1123,7 +1307,7 @@ function actionMessage(kind, action) {
   return "Saved successfully";
 }
 
-function MoneyList({ path, actionPath, kind = "deposit" }) {
+function MoneyList({ path, actionPath, kind = "deposit", brief = false }) {
   const [rows, setRows] = useState([]);
   const [ready, setReady] = useState(false);
   const [meta, setMeta] = useState({ page: 1, pages: 1 });
@@ -1158,7 +1342,13 @@ function MoneyList({ path, actionPath, kind = "deposit" }) {
     return () => { live = false; ctrl.abort(); };
   }, [fullPath, tick]);
   const act = (id, action, extra = {}) => api(`${actionPath}/${id}`, { method: "POST", body: { action, reason: extra.reason || "", pay_commission: extra.pay_commission ? "yes" : "no" } }).then(() => {
-    setDetail(null);
+    const stay = kind === "deposit" && action === "approve" && detail?.reapprove;
+    if (stay) {
+      setRows((current) => current.map((row) => row.id === id ? { ...row, status: "approved" } : row));
+      setDetail((current) => current && current.id === id ? { ...current, pending: false, reapprove: false, status: "approved", settled: true } : current);
+    } else {
+      setDetail(null);
+    }
     refreshCounts();
     refreshAdmin();
     toast(actionMessage(kind, action));
@@ -1168,11 +1358,54 @@ function MoneyList({ path, actionPath, kind = "deposit" }) {
     : row.status === "rejected"
       ? (kind === "deposit" ? <button className="btn small" onClick={() => act(row.id, "approve")}>Re-Approve</button> : <span className="badge" style={{ background: "#fee2e2", color: "#991b1b" }}>rejected</span>)
       : <div className="row-actions"><button className="btn small" onClick={() => act(row.id, "approve", { pay_commission: kind === "upgrade" && window.confirm("Credit 20% of the additional payment to the direct upliner?") })}>Approve</button><button className="btn ghost small" onClick={() => { const reason = window.prompt("Rejection reason"); if (reason) act(row.id, "reject", { reason }); }}>Reject</button></div>;
-  const who = (row) => <td><Link to={row.user_id ? `/admin/users/${row.user_id}` : "/admin/users"}><b>{row.full_name}</b></Link><div className="sub"><EmailLink email={row.email} userId={row.user_id} /></div>{row.upliner && <div className="sub">Upliner: <EmailLink email={row.upliner.email} userId={row.upliner.id} /></div>}</td>;
+  const priorLine = (row) => (kind === "deposit" && row.status === "rejected" ? <div className="sub prior-reason">Previous Rejection Reason: {String(row.reject_reason || "").trim() || "No previous rejection reason available"}</div> : null);
+  const who = (row) => <td><Link to={row.user_id ? `/admin/users/${row.user_id}` : "/admin/users"}><b>{row.full_name}</b></Link><div className="sub"><EmailLink email={row.email} userId={row.user_id} /></div>{row.upliner && <div className="sub">Upliner: <EmailLink email={row.upliner.email} userId={row.upliner.id} /></div>}{priorLine(row)}</td>;
+  const showRowActions = (row) => !(kind === "deposit" && (row.status === "pending" || row.status === "rejected"));
   const openRow = (row) => {
-    const base = paymentDetail(row, kind);
-      setDetail({ ...base, userId: row.user_id, review: kind !== "upgrade", upliner: row.upliner || null, loading: Boolean(row.user_id) || kind === "withdraw" });
-    const extraJob = kind === "withdraw" ? api(`/api/admin/withdrawals/${row.id}`) : Promise.resolve(null);
+    if (kind === "withdraw") {
+      const base = {
+        id: row.id,
+        title: "Withdraw request",
+        compact: true,
+        kind: "withdraw",
+        pending: row.status === "pending",
+        reapprove: false,
+        status: row.status,
+        userId: row.user_id,
+        date: row.created_at ? new Date(row.created_at).toLocaleString() : "—",
+        teamCount: "…",
+        team: null,
+        plan: "…",
+        joined: "…",
+        loading: true,
+        name: row.full_name || "—",
+        email: row.email,
+        phone: row.phone || "—",
+        referral: null,
+        method: row.method || "—",
+        accountName: row.account_name || "—",
+        accountNumber: row.account || "—",
+        amount: `Rs ${rs(row.amount)}`,
+        rejectReason: row.admin_remark || "",
+      };
+      setDetail(base);
+      api(`/api/admin/withdrawals/${row.id}`).then((extra) => {
+        setDetail((current) => (current && current.id === row.id ? {
+          ...base,
+          loading: false,
+          teamCount: String(extra.team?.approved ?? extra.team?.total ?? 0),
+          team: extra.team || null,
+          plan: extra.plan || extra.account?.plan || "No plan",
+          joined: extra.joined ? whenText(extra.joined) : "—",
+          phone: extra.account?.phone || base.phone,
+          referral: extra.upliner ? { id: extra.upliner.id, name: extra.upliner.full_name, email: extra.upliner.email } : null,
+        } : current));
+      }).catch(() => setDetail((current) => (current && current.id === row.id ? { ...base, loading: false, teamCount: "—" } : current)));
+      return;
+    }
+    const base = paymentDetail(row, kind, { brief });
+    setDetail({ ...base, userId: row.user_id, review: kind !== "upgrade", upliner: row.upliner || null, loading: Boolean(row.user_id) });
+    const extraJob = Promise.resolve(null);
     const userJob = Promise.resolve(null);
     Promise.all([extraJob, userJob]).then(([extra, userData]) => {
       let fields = base.fields;
@@ -1216,7 +1449,7 @@ function MoneyList({ path, actionPath, kind = "deposit" }) {
         ) : kind === "upgrade" ? (
           <tr key={row.id}>{who(row)}<td>{row.from_plan}</td><td>{row.to_plan}</td><td>Rs {row.amount}</td><td>{row.sender || "—"}</td><td><SlipView src={row.screenshot} onOpen={() => openRow(row)} /></td><td>{actions(row)}</td></tr>
         ) : (
-          <tr key={row.id}>{who(row)}<td>{row.plan || "—"}</td><td>Rs {row.amount}</td><td>{row.method || "—"}</td><td>{row.sender || "—"}</td><td><SlipView src={row.screenshot} onOpen={() => openRow(row)} /></td><td>{actions(row)}</td></tr>
+          <tr key={row.id}>{who(row)}<td>{row.plan || "—"}</td><td>Rs {row.amount}</td><td>{row.method || "—"}</td><td>{row.sender || "—"}</td><td><button className="view-btn" type="button" onClick={() => openRow(row)}>{row.status === "rejected" ? "Open Details" : "View Details"}</button></td><td>{showRowActions(row) ? actions(row) : null}</td></tr>
         ))}</tbody>
       </table></div>
       <div className="cards">{rows.map((row) => (
@@ -1225,8 +1458,9 @@ function MoneyList({ path, actionPath, kind = "deposit" }) {
           <div className="sub"><EmailLink email={row.email} userId={row.user_id} /></div>
           {row.upliner && <div className="sub">Upliner: {row.upliner.full_name}</div>}
           <div className="sub">{kind === "upgrade" ? `${row.from_plan} → ${row.to_plan}` : (row.plan || row.method)} · Rs {row.amount}{row.sender ? ` · ${row.sender}` : ""}{row.account_name ? ` · ${row.account_name}` : ""}{row.account ? ` · ${row.account}` : ""}</div>
-          <button className="view-btn" type="button" onClick={() => openRow(row)}>Open details</button>
-          {actions(row)}
+          {priorLine(row)}
+          <button className="view-btn" type="button" onClick={() => openRow(row)}>{kind === "deposit" && row.status === "rejected" ? "Open Details" : "View Details"}</button>
+          {showRowActions(row) ? actions(row) : null}
         </div>
       ))}</div>
       {!ready && <p>Loading...</p>}
@@ -1264,12 +1498,18 @@ export function Deposits() {
   const status = params.get("slip") || "pending";
   const page = params.get("page") || "1";
   const today = params.get("today") === "1" ? "&today=1" : "";
-  return <><h1>{today ? "Today Received Balance" : "New user Request"}</h1><QueueFilters suggest={`/api/admin/deposits?status=${status}${today}`} /><MoneyList path={`/api/admin/deposits?status=${status}${today}&page=${page}`} actionPath="/api/admin/deposits" /></>;
+  return <><h1>{today ? "Today Received Balance" : "New user Request"}</h1><QueueFilters suggest={`/api/admin/deposits?status=${status}${today}`} /><MoneyList brief={status === "pending" || status === "rejected"} path={`/api/admin/deposits?status=${status}${today}&page=${page}`} actionPath="/api/admin/deposits" /></>;
 }
 export function TodayUsers() {
-  const [q, setQ] = useState("");
-  const [day, setDay] = useState("");
-  const [plan, setPlan] = useState("");
+  const [params, setParams] = useSearchParams();
+  const q = params.get("q") || "";
+  const day = params.get("date") || "";
+  const plan = params.get("plan") || "";
+  const patch = (values) => {
+    const next = new URLSearchParams(params);
+    Object.entries(values).forEach(([key, value]) => { if (value) next.set(key, value); else next.delete(key); });
+    setParams(next);
+  };
   const [data, setData] = useState(null);
   const [detail, setDetail] = useState(null);
   useEffect(() => {
@@ -1288,10 +1528,10 @@ export function TodayUsers() {
         <div className="stat"><div className="sub">Today Approved User Count</div><h2>{data.users}</h2></div>
         {(data.plans || []).map((item) => <div className="stat" key={item.name}><div className="sub">{item.name}</div><h2>{item.count}</h2></div>)}
       </div>
-      <SearchBox value={q} placeholder="Search by full email" suggestPath="/api/admin/users?status=approved" onSearch={setQ} onPick={(row) => setQ(row.email)} />
+      <SearchBox value={q} placeholder="Search by full email" suggestPath="/api/admin/users?status=approved" onSearch={(value) => patch({ q: value })} onPick={(row) => patch({ q: row.email })} />
       <div className="filters">
-        <input type="date" value={day || data.date || ""} onChange={(e) => setDay(e.target.value)} />
-        <select value={plan} onChange={(e) => setPlan(e.target.value)}><option value="">All plans</option>{["Basic", "Gold", "Standard", "Premium", "Super Premium"].map((name) => <option key={name}>{name}</option>)}</select>
+        <input type="date" value={day || data.date || ""} onChange={(e) => patch({ date: e.target.value })} />
+        <select value={plan} onChange={(e) => patch({ plan: e.target.value })}><option value="">All plans</option>{["Basic", "Gold", "Standard", "Premium", "Super Premium"].map((name) => <option key={name}>{name}</option>)}</select>
       </div>
       <div className="table-wrap"><table><tbody>{(data.rows || []).map((row) => <tr key={row.id}><td><Link to={`/admin/users/${row.user_id}`}><b>{row.full_name}</b></Link><div className="sub"><EmailLink email={row.email} userId={row.user_id} /></div></td><td>{row.plan}<div className="sub">Rs {row.amount}</div><div className="sub">Submitted {String(row.created_at || "").slice(0, 10)}</div></td><td><button className="view-btn" type="button" onClick={() => setDetail({ ...paymentDetail({ ...row, status: "approved" }, "deposit"), userId: row.user_id, pending: false })}>View detail</button></td></tr>)}</tbody></table></div>
       {(data.rows || []).length === 0 && <p>{q ? "No account found" : "0 users for this filter."}</p>}
@@ -1332,14 +1572,22 @@ export function Rejected() {
     if (!("page" in values)) next.delete("page");
     setParams(next);
   };
-  return <><h1>Rejected User</h1><SearchBox value={q} placeholder="Search by full email" suggestPath="/api/admin/deposits?status=rejected" onSearch={(value) => patch({ q: value })} onPick={(row) => patch({ q: row.email })} /><div className="filters"><input type="date" value={day} aria-label="Rejection date" onChange={(e) => patch({ date: e.target.value })} /><select value={plan} onChange={(e) => patch({ plan: e.target.value })}><option value="">All plans</option>{["Basic", "Gold", "Standard", "Premium", "Super Premium"].map((name) => <option key={name}>{name}</option>)}</select></div><MoneyList kind="deposit" path={`/api/admin/deposits?status=rejected&date=${day}&plan=${encodeURIComponent(plan)}&page=${page}`} actionPath="/api/admin/deposits" /></>;
+  return <><h1>Rejected User</h1><SearchBox value={q} placeholder="Search by full email" suggestPath="/api/admin/deposits?status=rejected" onSearch={(value) => patch({ q: value })} onPick={(row) => patch({ q: row.email })} /><div className="filters"><input type="date" value={day} aria-label="Rejection date" onChange={(e) => patch({ date: e.target.value })} /><select value={plan} onChange={(e) => patch({ plan: e.target.value })}><option value="">All plans</option>{["Basic", "Gold", "Standard", "Premium", "Super Premium"].map((name) => <option key={name}>{name}</option>)}</select></div><MoneyList brief kind="deposit" path={`/api/admin/deposits?status=rejected&date=${day}&plan=${encodeURIComponent(plan)}&page=${page}`} actionPath="/api/admin/deposits" /></>;
 }
 export function Upgrades() {
-  const [params] = useSearchParams();
-  const board = useLoad("/api/admin/upgrade-board");
+  const [params, setParams] = useSearchParams();
+  const day = params.get("date") || "";
+  const board = useLoad(`/api/admin/upgrade-board?date=${encodeURIComponent(day || "today")}`);
   const status = params.get("ustatus") || "pending";
   const page = params.get("page") || "1";
-  return <><h1>Plan Upgrade</h1><div className="stats"><div className="stat"><div className="sub">Today Plan Upgrades</div><h2>{board?.today_count || 0}</h2></div><div className="stat"><div className="sub">Today Receive Balance</div><h2>Rs {board?.today_receive || "0.00"}</h2></div><div className="stat"><div className="sub">Pending</div><h2>{board?.pending || 0}</h2></div><div className="stat"><div className="sub">Approved</div><h2>{board?.approved || 0}</h2></div><div className="stat"><div className="sub">Rejected</div><h2>{board?.rejected || 0}</h2></div></div><p className="sub">{board?.commission_base}</p><QueueFilters param="ustatus" suggest={`/api/admin/upgrades?status=${status}`} /><MoneyList kind="upgrade" path={`/api/admin/upgrades?status=${status}&page=${page}`} actionPath="/api/admin/upgrades" /></>;
+  const label = board?.date || day || "today";
+  const setDay = (value) => {
+    const next = new URLSearchParams(params);
+    if (value) next.set("date", value); else next.delete("date");
+    next.delete("page");
+    setParams(next);
+  };
+  return <><h1>Plan Upgrade</h1><div className="filters"><label>Report date <input type="date" value={day} onChange={(e) => setDay(e.target.value)} /></label><button className="btn small" type="button" onClick={() => setDay("")}>Today</button></div><div className="stats"><div className="stat"><div className="sub">Receive balance · {label}</div><h2>Rs {board?.today_receive || "0.00"}</h2></div><div className="stat"><div className="sub">Pending · {label}</div><h2>{board?.pending || 0}</h2></div><div className="stat"><div className="sub">Approved · {label}</div><h2>{board?.approved || 0}</h2></div><div className="stat"><div className="sub">Rejected · {label}</div><h2>{board?.rejected || 0}</h2></div><div className="stat"><div className="sub">Approved count · {label}</div><h2>{board?.today_count || 0}</h2></div></div><p className="sub">Approving an upgrade adds its amount to this date's receive balance. {board?.commission_base}</p><QueueFilters param="ustatus" suggest={`/api/admin/upgrades?status=${status}&date=${day}`} /><MoneyList kind="upgrade" path={`/api/admin/upgrades?status=${status}&date=${encodeURIComponent(day)}&page=${page}`} actionPath="/api/admin/upgrades" /></>;
 }
 export function Gateways() {
   const toast = useContext(toastContext);
@@ -1359,6 +1607,7 @@ export function Gateways() {
       body.append("name", row.name);
       body.append("account_name", row.account_name || "");
       body.append("account_number", row.account_number || "");
+      body.append("instructions", row.instructions || "");
       body.append("active", row.active === false ? "0" : "1");
       if (row.imageFile) body.append("image", row.imageFile);
       await api("/api/admin/gateways", { method: "POST", body });
@@ -1398,6 +1647,7 @@ export function Gateways() {
           <input placeholder="Method name" value={row.name || ""} onChange={(e) => update(row.key, "name", e.target.value)} />
           <input placeholder="Account title" value={row.account_name || ""} onChange={(e) => update(row.key, "account_name", e.target.value)} />
           <input placeholder="Account number" value={row.account_number || ""} onChange={(e) => update(row.key, "account_number", e.target.value)} />
+          <textarea rows="4" placeholder="Instructions shown on the user deposit page" value={row.instructions || ""} onChange={(e) => update(row.key, "instructions", e.target.value)} />
           <label><input type="checkbox" checked={row.active !== false} onChange={(e) => update(row.key, "active", e.target.checked)} /> Show in withdrawal options</label>
           <input type="file" accept="image/*" onChange={(e) => update(row.key, "imageFile", e.target.files[0])} />
           {row.image && <img src={row.image} alt="" width="42" height="42" />}
@@ -1441,7 +1691,7 @@ export function Transactions() {
     subtitle: t.user_name,
     userId: t.user_id,
     sourceUserId: t.source_user_id,
-    fields: [["User", t.user_name], ["Email", t.user_email], ["From", t.source_email || "—"], ["Plan", t.plan_name || "—"], ["Amount", `Rs ${t.amount}`], ["Date", whenText(t.created_at)]],
+    fields: [["User", t.user_name], ["Email", t.user_email], ["From", t.source_email || "—"], ["Plan", t.plan_name || "—"], ["Purpose", t.purpose || "—"], ["Amount", `Rs ${t.amount}`], ["Date", whenText(t.created_at)]],
   });
   if (!data) return <p>Loading...</p>;
   const picked = day === "today" ? (data.date || "") : day;
@@ -1461,6 +1711,7 @@ export function Transactions() {
           <option value="manual_add">Balance Add</option>
           <option value="manual_sub">Balance Subtract</option>
           <option value="direct_traffic">Direct Referral Commission</option>
+          <option value="upgrade_referral">Referral Commission from Plan Upgrade</option>
           <option value="indirect_1">Indirect Traffic Commission — Level 1</option>
           <option value="indirect_2">Indirect Traffic Commission — Level 2</option>
           <option value="referral">Referral Commissions</option>
@@ -1469,8 +1720,8 @@ export function Transactions() {
         <input type="date" value={picked} onChange={(e) => setQuery({ date: e.target.value })} />
         <button className="btn small" type="button" onClick={() => setQuery({ date: "" })}>All dates</button>
       </div>
-      <div className="table-wrap desktop-table"><table><tbody>{rows.map((t) => <tr key={t.id}><td><Link to={t.user_id ? `/admin/users/${t.user_id}` : "/admin/users"}><b>{t.user_name}</b></Link><div className="sub"><EmailLink email={t.user_email} userId={t.user_id} /></div><div className="sub">{t.title}</div>{t.source_email && <div className="sub">Related <EmailLink email={t.source_email} userId={t.source_user_id} /></div>}<div className="sub">{whenText(t.created_at)}</div></td><td>Rs {t.amount}</td><td><button className="view-btn" type="button" onClick={() => open(t)}>View</button></td></tr>)}</tbody></table></div>
-      <div className="cards">{rows.map((t) => <div className="lb-card" key={t.id}><Link to={t.user_id ? `/admin/users/${t.user_id}` : "/admin/users"}><b>{t.user_name}</b></Link><div className="sub"><EmailLink email={t.user_email} userId={t.user_id} /></div><div className="sub">{t.title}</div>{t.source_email && <div className="sub">Related <EmailLink email={t.source_email} userId={t.source_user_id} /></div>}<div className="sub">{whenText(t.created_at)} · Rs {t.amount}</div><button className="view-btn" type="button" onClick={() => open(t)}>View</button></div>)}</div>
+      <div className="table-wrap desktop-table"><table><tbody>{rows.map((t) => <tr key={t.id}><td><Link to={t.user_id ? `/admin/users/${t.user_id}` : "/admin/users"}><b>{t.user_name}</b></Link><div className="sub"><EmailLink email={t.user_email} userId={t.user_id} /></div><div className="sub">{t.title}</div>{category === "manual_add" || t.purpose ? <div className="purpose-tag">Purpose: {t.purpose || "No purpose entered"}</div> : null}{t.source_email && <div className="sub">Related <EmailLink email={t.source_email} userId={t.source_user_id} /></div>}<div className="sub">{whenText(t.created_at)}</div></td><td><b className="money-hot">Rs {t.amount}</b></td><td><button className="view-btn" type="button" onClick={() => open(t)}>View</button></td></tr>)}</tbody></table></div>
+      <div className="cards">{rows.map((t) => <div className="lb-card" key={t.id}><Link to={t.user_id ? `/admin/users/${t.user_id}` : "/admin/users"}><b>{t.user_name}</b></Link><div className="sub"><EmailLink email={t.user_email} userId={t.user_id} /></div><div className="sub">{t.title}</div>{category === "manual_add" || t.purpose ? <div className="purpose-tag">Purpose: {t.purpose || "No purpose entered"}</div> : null}{t.source_email && <div className="sub">Related <EmailLink email={t.source_email} userId={t.source_user_id} /></div>}<div className="sub">{whenText(t.created_at)}</div><b className="money-hot">Rs {t.amount}</b><button className="view-btn" type="button" onClick={() => open(t)}>View</button></div>)}</div>
       {rows.length === 0 && <p>No records for this filter.</p>}
       {Number(data.pages) > 1 && (
         <div className="row-actions">
@@ -1491,7 +1742,7 @@ export function Settings() {
 }
 export function Channels() {
   const [rows, setRows] = useState([]);
-  const [form, setForm] = useState({ title: "", purpose: "", link: "https://flowersblom.com", description: "" });
+  const [form, setForm] = useState({ title: "", purpose: "", link: "https://flowerblom.com", description: "" });
   const [shot, setShot] = useState("");
   const load = () => api("/api/admin/channels").then(setRows);
   useEffect(() => { load(); }, []);
