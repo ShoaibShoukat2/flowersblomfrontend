@@ -145,14 +145,14 @@ function ChannelCards({ channels, onDone, busy, error }) {
   return (
     <div className="channel-gate">
       {(channels || []).map((channel) => (
-        <a className="channel-card" key={channel.id || channel.title} href={channel.link || "#"} target="_blank" rel="noopener noreferrer">
+        <div className="channel-card" key={channel.id || channel.title}>
           {channel.image ? <img className="channel-ico" src={channel.image} alt="" /> : <span className="channel-ico channel-fallback" aria-hidden="true">📢</span>}
           <div className="channel-copy">
             <b>{channel.title}</b>
             <span>{channel.purpose || channel.description || "Official channel"}</span>
           </div>
-          <em>Join</em>
-        </a>
+          <a className="channel-action" href={channel.link || "#"} target="_blank" rel="noopener noreferrer">Join</a>
+        </div>
       ))}
       {(channels || []).length === 0 && <p>Official channel links are not added yet.</p>}
       <label className="remember channel-check">
