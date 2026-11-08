@@ -1422,6 +1422,8 @@ function MoneyList({ path, actionPath, kind = "deposit", brief = false }) {
     if (action === "edit") {
       setDetail(null);
       window.dispatchEvent(new Event("admin-data-refresh"));
+      refreshCounts();
+      refreshAdmin();
       toast("Payment details updated. The saved plan will be used for approval.");
       return;
     }
@@ -1523,8 +1525,8 @@ function MoneyList({ path, actionPath, kind = "deposit", brief = false }) {
         withdrawals: (userData.withdrawals || []).slice(0, 6),
         transactions: (userData.transactions || []).slice(0, 6),
       } : null;
-      setDetail((current) => (current && current.id === row.id ? { ...base, fields, review: kind !== "upgrade", loading: false, account, upliner, team, userPack } : current));
-    }).catch(() => setDetail((current) => (current && current.id === row.id ? { ...base, review: kind !== "upgrade", loading: false } : current)));
+      setDetail((current) => (current && current.id === row.id ? { ...current, fields, review: kind !== "upgrade", loading: false, account, upliner, team, userPack } : current));
+    }).catch(() => setDetail((current) => (current && current.id === row.id ? { ...current, review: kind !== "upgrade", loading: false } : current)));
   };
   return (
     <>
